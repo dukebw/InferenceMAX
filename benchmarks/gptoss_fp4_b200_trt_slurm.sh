@@ -75,6 +75,9 @@ set -x
 
 MAX_NUM_TOKENS=20000
 
+echo "import FLASHINFER"
+python -c 'import flashinfer;print("imported"+flashinfer.__version__);'
+
 # Launch TRT-LLM server
 mpirun -n 1 --oversubscribe --allow-run-as-root \
     trtllm-serve $MODEL --port=$PORT \
