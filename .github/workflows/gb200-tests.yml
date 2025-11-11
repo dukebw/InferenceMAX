@@ -10,7 +10,7 @@ on:
                 options:
                     - "nvcr.io/nvidia/ai-dynamo/sglang-runtime:0.5.1-rc0.pre1"
                     - "nvcr.io#nvidia/ai-dynamo/tensorrtllm-runtime:0.5.1-rc0.pre3"
-                    - "docker.io/jwillthomson/gpt-oss-disagg-submission"
+                    - "nvcr.io/nvidia/ai-dynamo/tensorrtllm-runtime:0.6.1-cuda13"
 
             model:
                 description: "Model"

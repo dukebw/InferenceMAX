@@ -117,7 +117,7 @@ jobs:
                       }
                       # GPTOSS
                     - {
-                          "image": "docker.io/jwillthomson/gpt-oss-disagg-submission",
+                          "image": "nvcr.io/nvidia/ai-dynamo/tensorrtllm-runtime:0.6.1-cuda13",
                           "model": "openai/gpt-oss-120b",
                           "model-prefix": "gptoss",
                           "precision": "fp4",
