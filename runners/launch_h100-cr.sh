@@ -51,4 +51,4 @@ benchmarks/"${EXP_NAME%%_*}_${PRECISION}_h100_docker.sh"
 # --result-dir=/workspace/ \
 # --result-filename=$RESULT_FILENAME.json"
 
-docker stop $server_name
+# docker stop $server_name
