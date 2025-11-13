@@ -121,11 +121,11 @@ if [[ $FRAMEWORK == "dynamo-trtllm" ]]; then
                 
                     echo "Running 8k/1k MTP=OFF configurations for GPT-OSS"
                     
-                    #./submit_disagg.sh mtp=off tp 1 1 1 512 20000 "0.9" 0 0 "128 256 512"
-                    #./submit_disagg.sh mtp=off tp 1 1 2 1024 20000 "0.9" 0 0 "64 128 256"
-                    ./submit_disagg.sh mtp=off tep 1 1 2 1024 20000 "0.9" 0 0 "64" #"64 256"
-                    #./submit_disagg.sh mtp=off tp 1 1 4 2048 20000 "0.9" 0 0 "8 16 32 64 128"
-                    #./submit_disagg.sh mtp=off tp 1 1 8 2048 20000 "0.9" 0 0 "1 2 4 8 16"
+                    ./submit_disagg.sh mtp=off tp 1 1 1 512 20000 "0.9" 0 0 "128 256 512"
+                    ./submit_disagg.sh mtp=off tp 1 1 2 1024 20000 "0.9" 0 0 "64 128 256"
+                    ./submit_disagg.sh mtp=off tep 1 1 2 1024 20000 "0.9" 0 0 "64 256"
+                    ./submit_disagg.sh mtp=off tp 1 1 4 2048 20000 "0.9" 0 0 "8 16 32 64 128"
+                    ./submit_disagg.sh mtp=off tp 1 1 8 2048 20000 "0.9" 0 0 "1 2 4 8 16"
             else
                 echo "Unsupported ISL/OSL combination for GPT-OSS: $isl/$osl"
                 exit 1
@@ -310,15 +310,17 @@ if [[ $FRAMEWORK == "dynamo-trtllm" ]]; then
 
             for result_file in $CONCURRENCY_FILES; do
                 if [ -f "$result_file" ]; then
-                    # Extract concurrency and GPU count from filename
+                    # Extract concurrency, total_gpus, prefill_gpus, and decode_gpus from filename
                     filename=$(basename "$result_file")
-                    concurrency=$(echo "$filename" | sed 's/results_concurrency_\([0-9]*\)_gpus_.*\.json/\1/')
-                    #gpus=$(echo "$filename" | sed 's/results_concurrency_.*_gpus_\([0-9]*\)\.json/\1/')
-                    gpus=$(echo "$result_file" | sed -n "s/.*_gpus_\([0-9]*\).*\.json/\1/p")
-                    echo "Processing concurrency $concurrency with $gpus GPUs: $result_file"
+                    concurrency=$(echo "$filename" | sed 's/results_concurrency_\([0-9]*\)_.*/\1/')
+                    gpus=$(echo "$filename" | sed 's/.*_gpus_\([0-9]*\)_.*/\1/')
+                    prefill_gpus=$(echo "$filename" | sed 's/.*_ctx_\([0-9]*\)_.*/\1/')
+                    decode_gpus=$(echo "$filename" | sed 's/.*_gen_\([0-9]*\)\.json/\1/')
+                    
+                    echo "Processing concurrency $concurrency with $gpus GPUs (prefill_gpus=$prefill_gpus, decode_gpus=$decode_gpus): $result_file"
 
                     # Copy the result file to workspace with a unique name
-                    WORKSPACE_RESULT_FILE="$GITHUB_WORKSPACE/${RESULT_FILENAME}_${CONFIG_NAME}_conc${concurrency}_gpus${gpus}.json"
+                    WORKSPACE_RESULT_FILE="$GITHUB_WORKSPACE/${RESULT_FILENAME}_${CONFIG_NAME}_conc${concurrency}_gpus${gpus}_ctx${prefill_gpus}_gen${decode_gpus}.json"
                     cp "$result_file" "$WORKSPACE_RESULT_FILE"
 
                     echo "Copied result file to: $WORKSPACE_RESULT_FILE"
