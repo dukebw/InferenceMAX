@@ -320,7 +320,7 @@ if [[ $FRAMEWORK == "dynamo-trtllm" ]]; then
                     echo "Processing concurrency $concurrency with $gpus GPUs (prefill_gpus=$prefill_gpus, decode_gpus=$decode_gpus): $result_file"
 
                     # Copy the result file to workspace with a unique name
-                    WORKSPACE_RESULT_FILE="$GITHUB_WORKSPACE/${RESULT_FILENAME}_${CONFIG_NAME}_conc${concurrency}_gpus${gpus}_ctx${prefill_gpus}_gen${decode_gpus}.json"
+                    WORKSPACE_RESULT_FILE="$GITHUB_WORKSPACE/${RESULT_FILENAME}_${CONFIG_NAME}_conc${concurrency}_gpus-${gpus}_ctx-${prefill_gpus}_gen-${decode_gpus}.json"
                     cp "$result_file" "$WORKSPACE_RESULT_FILE"
 
                     echo "Copied result file to: $WORKSPACE_RESULT_FILE"
