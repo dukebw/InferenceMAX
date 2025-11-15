@@ -35,21 +35,21 @@ on:
         default: "200"
   push:
     paths:
-      - '.github/workflows/eval-h100-gms8k.yml'
+      - '.github/workflows/eval-gms8k.yml'
       - '.github/workflows/eval-tmpl.yml'
-      - 'benchmarks/dsr1_fp8_mi325x_slurm.sh'
+      - 'benchmarks/gptoss_fp4_h100_slurm.sh'
 
 jobs:
   eval:
     uses: ./.github/workflows/eval-tmpl.yml
     secrets: inherit
     with:
-      runner: mi325x-tw_1
-      image: ${{ inputs.image || 'rocm/7.0:rocm7.0_ubuntu_22.04_sgl-dev-v0.5.2-rocm7.0-mi30x-20250915' }}
-      model: ${{ inputs.model || 'deepseek-ai/DeepSeek-R1-0528' }}
-      framework: sglang
-      precision: fp8
-      exp-name: dsr1_gsm8k_poc
+      runner: h100-cr_1
+      image: ${{ inputs.image || 'vllm/vllm-openai:v0.11.0' }}
+      model: ${{ inputs.model || 'openai/gpt-oss-120b' }}
+      framework: vllm
+      precision: fp4
+      exp-name: gptoss_gsm8k_poc
       tp: ${{ inputs.tp || '4' }}
       ep: '1'
       dp-attn: false
