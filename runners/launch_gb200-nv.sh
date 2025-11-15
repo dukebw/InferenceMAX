@@ -66,7 +66,7 @@ if [[ $FRAMEWORK == "dynamo-trtllm" ]]; then
     git clone https://github.com/ai-dynamo/dynamo.git "$DYNAMO_PATH"
     cd "$DYNAMO_PATH"
     if [[ $MODEL == *"gpt-oss"* ]]; then
-        git checkout jthomson04/gpt-oss-disagg-slurm
+        git checkout release/0.5.1-rc0.20251114
     else
         git checkout release/0.5.1-rc0.20251105
     fi  
