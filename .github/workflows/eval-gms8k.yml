@@ -32,7 +32,7 @@ on:
         description: "Sample limit for GSM8K"
         required: false
         type: string
-        default: "200"
+        default: "1300"
   push:
     paths:
       - '.github/workflows/eval-gms8k.yml'
