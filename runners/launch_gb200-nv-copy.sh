@@ -2,6 +2,7 @@
 
 # This script sets up the environment and launches multi-node benchmarks
 
+set -x
 
 # Set up environment variables for SLURM
 export SLURM_PARTITION="batch"
@@ -102,7 +103,6 @@ if [[ $FRAMEWORK == "dynamo-trtllm" ]]; then
     gen_nodes=$(((DECODE_TP + 3)/4 * DECODE_NUM_WORKERS))
     total_nodes=$((PREFILL_NUM_WORKERS + gen_nodes))
     total_tasks=$((total_nodes * ntasks_per_node))
-    set -x
     if [ $ISL == $OSL ]; then
         sbatch --nodes=${total_nodes} \
             --ntasks=${total_tasks} \
