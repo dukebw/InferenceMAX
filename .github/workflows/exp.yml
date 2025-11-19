@@ -20,7 +20,8 @@ jobs:
               run: |
                   pip install pydantic
                   CONFIG_JSON_MULTI_NODE=$(python3 ${GITHUB_WORKSPACE}/utils/matrix-logic/generate_sweep_configs.py full-sweep --node-type multinode --config-files ${GITHUB_WORKSPACE}/.github/configs/nvidia-master.yaml --seq-lens 1k1k --model-prefix dsr1)
-                  echo "multi-node-search-space-config=$CONFIG_JSON" >> $GITHUB_OUTPUT
+                  echo "multi-node-search-space-config=$CONFIG_JSON_MULTI_NODE" >> $GITHUB_OUTPUT
+                  echo $CONFIG_JSON_MULTI_NODE
 
     # get-gptoss-configs:
     #     runs-on: ubuntu-latest
