@@ -364,6 +364,7 @@ dsr1-fp4-gb200-trt:
 
     # dep - Run Data-Expert Parallel mode (attention_dp=true)
     - mtp: "on"
+      conc-list: [ 512, 1075 ]
       prefill:
         num-worker: 1
         tp: 4
@@ -383,7 +384,6 @@ dsr1-fp4-gb200-trt:
         - "GEN_GPU_MEM_FRACTION=0.7"
         - "GEN_MTP_SIZE=3"
         - "GEN_EPLB_NUM_SLOTS=0"
-      conc-list: [ 512, 1075 ]
 
     - mtp: "on"
       prefill: { num-worker: 2, tp: 4, ep: 4, batch-size: 4, max-num-tokens: 4608, dp-attn: true }
