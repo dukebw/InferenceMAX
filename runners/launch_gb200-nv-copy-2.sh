@@ -33,6 +33,70 @@ export OSL="$OSL"
 
 bash benchmarks/"${EXP_NAME%%_*}_${PRECISION}_gb200_${FRAMEWORK}_slurm.sh"
 
+# Wait for all jobs to complete
+echo "Waiting for all jobs to complete..."
+while [ -n "$(squeue -u $USER --noheader --format='%i')" ]; do
+    echo "Jobs still running..."
+    squeue --steps -u $USER
+    sleep 30
+done
+
+# Find the logs directory (should be only one for this ISL/OSL combination)
+LOGS_DIR=$(find . -name "dynamo_disagg-bm-${ISL}-${OSL}" -type d | head -1)
+if [ -z "$LOGS_DIR" ]; then
+    echo "No logs directory found for ISL=${ISL}, OSL=${OSL}"
+    exit 1
+fi
+
+echo "Found logs directory: $LOGS_DIR"
+
+# Find all result subdirectories in this logs directory
+RESULT_SUBDIRS=$(find "$LOGS_DIR" -name "ctx*_gen*_[td]ep*_batch*_eplb*_mtp*" -type d)
+
+if [ -z "$RESULT_SUBDIRS" ]; then
+    echo "No result subdirectories found in $LOGS_DIR"
+    exit 1
+fi
+
+echo "Found result subdirectories:"
+echo "$RESULT_SUBDIRS"
+
+# Process results from all configurations
+for result_subdir in $RESULT_SUBDIRS; do
+    echo "Processing result subdirectory: $result_subdir"
+
+    # Extract configuration info from directory name
+    CONFIG_NAME=$(basename "$result_subdir")
+
+    # Process individual concurrency result files
+    RESULTS_SUBDIR="$result_subdir/results"
+
+    if [ -d "$RESULTS_SUBDIR" ]; then
+        echo "Processing results from: $RESULTS_SUBDIR"
+
+        # Find all concurrency result files with new format
+        CONCURRENCY_FILES=$(find "$RESULTS_SUBDIR" -name "results_concurrency_*_gpus_*.json")
+
+        for result_file in $CONCURRENCY_FILES; do
+            if [ -f "$result_file" ]; then
+                # Extract concurrency and GPU count from filename
+                filename=$(basename "$result_file")
+                concurrency=$(echo "$filename" | sed 's/results_concurrency_\([0-9]*\)_gpus_.*\.json/\1/')
+                gpus=$(echo "$filename" | sed 's/results_concurrency_.*_gpus_\([0-9]*\)\.json/\1/')
+                echo "Processing concurrency $concurrency with $gpus GPUs: $result_file"
+
+                # Copy the result file to workspace with a unique name
+                WORKSPACE_RESULT_FILE="$GITHUB_WORKSPACE/${RESULT_FILENAME}_${CONFIG_NAME}_conc${concurrency}_gpus${gpus}.json"
+                cp "$result_file" "$WORKSPACE_RESULT_FILE"
+
+                echo "Copied result file to: $WORKSPACE_RESULT_FILE"
+            fi
+        done
+    else
+        echo "Results subdirectory not found: $RESULTS_SUBDIR"
+    fi
+done
+
 # ### FRAMEWORK_DIFF_IF_STATEMENT #2 - difference in launching jobs
 # if [[ $FRAMEWORK == "dynamo-trtllm" ]]; then
 
