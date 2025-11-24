@@ -134,7 +134,9 @@ def generate_full_sweep(args, all_config_data, runner_data):
                             continue
 
                         # Multinode configuration
-                        spec_decoding = bmk.get(Fields.SPEC_DECODING.value)
+                        # spec_decoding defaults to "none" if not specified
+                        spec_decoding = bmk.get(Fields.SPEC_DECODING.value, "none")
+
                         prefill = bmk[Fields.PREFILL.value]
                         decode = bmk[Fields.DECODE.value]
 
@@ -167,16 +169,13 @@ def generate_full_sweep(args, all_config_data, runner_data):
                             Fields.RUNNER.value: runner,
                             Fields.ISL.value: isl,
                             Fields.OSL.value: osl,
+                            Fields.SPEC_DECODING.value: spec_decoding,
                             Fields.PREFILL.value: prefill,
                             Fields.DECODE.value: decode,
                             Fields.CONC.value: conc_values,  # Pass the entire list for multinode
                             Fields.MAX_MODEL_LEN.value: isl + osl + 200,
                             Fields.EXP_NAME.value: f"{model_code}_{seq_len_str}",
                         }
-
-                        # Add spec_decoding if specified
-                        if spec_decoding is not None:
-                            entry[Fields.SPEC_DECODING.value] = spec_decoding
 
                         validate_matrix_output(entry, is_multinode)
                         matrix_values.append(entry)

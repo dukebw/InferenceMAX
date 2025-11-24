@@ -15,6 +15,7 @@ if [ "$SPEC_DECODING" == "mtp" ]; then
     check_env_vars DECODE_MTP_SIZE
 else
     DECODE_MTP_SIZE="0"
+fi
 
 PERFORMANCE_SWEEPS_PATH="components/backends/trtllm/performance_sweeps"
 

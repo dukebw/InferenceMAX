@@ -46,7 +46,7 @@ class Fields(Enum):
 
 
 class SingleNodeMatrixEntry(BaseModel):
-    """Pydantic model for validating single node matrix entry structure. 
+    """Pydantic model for validating single node matrix entry structure.
     This validates the input that should be expected to .github/workflows/benchmark-tmpl.yml"""
     model_config = ConfigDict(extra='forbid', populate_by_name=True)
 
@@ -54,7 +54,7 @@ class SingleNodeMatrixEntry(BaseModel):
     model: str
     precision: str
     framework: str
-    spec_decoding: Optional[Literal["mtp", "draft_model"]] = Field(
+    spec_decoding: Optional[Literal["mtp", "draft_model", "none"]] = Field(
         default=None,
         alias=Fields.SPEC_DECODING.value
     )
@@ -90,8 +90,7 @@ class MultiNodeMatrixEntry(BaseModel):
     model: str
     precision: str
     framework: str
-    spec_decoding: Optional[Literal["mtp", "draft_model"]] = Field(
-        default=None,
+    spec_decoding: Literal["mtp", "draft_model", "none"] = Field(
         alias=Fields.SPEC_DECODING.value
     )
     runner: str
@@ -169,7 +168,7 @@ class SingleNodeSearchSpaceEntry(BaseModel):
 
     tp: int
     ep: Optional[int] = None
-    spec_decoding: Optional[Literal["mtp", "draft_model"]
+    spec_decoding: Optional[Literal["mtp", "draft_model", "none"]
                   ] = Field(default=None, alias=Fields.SPEC_DECODING.value)
     dp_attn: Optional[bool] = Field(
         default=None, alias=Fields.DP_ATTN.value)
@@ -189,8 +188,9 @@ class MultiNodeSearchSpaceEntry(BaseModel):
     """Multinode search space configuration."""
     model_config = ConfigDict(extra='forbid', populate_by_name=True)
 
-    spec_decoding: Optional[Literal["mtp", "draft_model"]
-                  ] = Field(default=None, alias=Fields.SPEC_DECODING.value)
+    spec_decoding: Literal["mtp", "draft_model", "none"] = Field(
+        default="none",
+        alias=Fields.SPEC_DECODING.value)
     prefill: WorkerConfig
     decode: WorkerConfig
     conc_start: Optional[int] = Field(
