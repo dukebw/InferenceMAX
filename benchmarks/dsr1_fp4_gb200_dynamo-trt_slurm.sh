@@ -60,13 +60,36 @@ sbatch --nodes=${total_nodes} \
     ${MODEL_PATH} ${SERVED_MODEL_NAME} \
     ${IMAGE} ${ISL} ${OSL}
 
-# Wait for all jobs to complete
+# # Wait for all jobs to complete
+# echo "Waiting for all jobs to complete..."
+# while [ -n "$(squeue -u $USER --noheader --format='%i')" ]; do
+#     echo "Jobs still running..."
+#     squeue --steps -u $USER
+#     sleep 30
+# done
+
 echo "Waiting for all jobs to complete..."
-while [ -n "$(squeue -u $USER --noheader --format='%i')" ]; do
-    echo "Jobs still running..."
-    squeue --steps -u $USER
-    sleep 30
-done
+JOB_ID=$(squeue -u $USER --noheader --format='%i' | head -1)
+
+if [ -n "$JOB_ID" ]; then
+    # Tail the slurm output file
+    SLURM_LOG="slurm-${JOB_ID}.out"
+    echo "Tailing ${SLURM_LOG}..."
+    
+    # Wait for log file to appear, then tail it
+    while [ ! -f "$SLURM_LOG" ]; do
+        sleep 2
+    done
+    tail -f "$SLURM_LOG" &
+    TAIL_PID=$!
+    
+    # Wait for job to finish
+    while squeue -j $JOB_ID --noheader 2>/dev/null | grep -q .; do
+        sleep 30
+    done
+    
+    kill $TAIL_PID 2>/dev/null
+fi
 
 # Find the logs directory (should be only one for this ISL/OSL combination)
 LOGS_DIR=$(find . -name "dynamo_disagg-bm-${ISL}-${OSL}" -type d | head -1)
