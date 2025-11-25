@@ -111,9 +111,7 @@ jobs:
             echo "[Docker] skipping docker cleanup on host $host"
           fi
           # Best-effort cleanup of prior eval outputs; do not block
-          sudo rm -rf /home/ubuntu/actions-runner/_work/InferenceMAX/InferenceMAX/eval_out/openai__gpt-oss-120b || true
-          sudo rm -rf /home/ubuntu/actions-runner/_work/InferenceMAX/InferenceMAX/.litellm_cache/cache.db || true
-
+        
           if command -v squeue >/dev/null 2>&1; then
             echo "[Slurm] Cleaning up resources ..."
             safe_timeout scancel -u "$USER" || true
