@@ -474,8 +474,10 @@ def _greedy_until_impl(self, docs: list[Doc]) -> list[ModelResponse]:
 
     return dataset.get_original_order(results)
 
-# Re-apply caching decorator
-LiteLLMClient.greedy_until = cached(SamplingMethod.GENERATIVE)(_greedy_until_impl)
+# Disable lighteval on-disk caching to avoid filesystem issues with task names
+# like "gsm8k|5" becoming part of cache paths on certain filesystems.
+# We directly bind the greedy method without the caching decorator.
+LiteLLMClient.greedy_until = _greedy_until_impl
 PY
     export PYTHONPATH="${patch_dir}:${PYTHONPATH:-}"
 }
