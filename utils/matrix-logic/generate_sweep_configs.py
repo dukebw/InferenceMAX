@@ -26,8 +26,8 @@ def seq_len_to_str(isl: int, osl: int) -> str:
 def generate_full_sweep(args, all_config_data, runner_data):
     """Generate full sweep configurations with optional filtering.
 
-    Supports filtering by model prefix, precision, framework, runner type, and sequence lengths.
-    Supports test mode to only run highest TP with lowest concurrency.
+    Supports filtering by model prefix, precision, framework, runner type, sequence lengths,
+    and max concurrency.
 
     All filters are optional - can generate sweeps for all configs or filter by specific criteria.
 
@@ -88,78 +88,88 @@ def generate_full_sweep(args, all_config_data, runner_data):
 
             bmk_space = seq_config[Fields.SEARCH_SPACE.value]
 
-            if args.test_mode:
-                # In test mode, skip multinode configs for now
+            for bmk in bmk_space:
                 if is_multinode:
-                    continue
+                    # Skip multinode configs when --single-node is specified
+                    if not args.multi_node:
+                        continue
 
-                # In test mode, use highest TP with lowest concurrency
-                highest_tp_bmk = max(
-                    bmk_space, key=lambda x: x[Fields.TP.value])
-                tp = highest_tp_bmk[Fields.TP.value]
-                conc = highest_tp_bmk[Fields.CONC_START.value]
-                ep = highest_tp_bmk.get(Fields.EP.value)
-                dp_attn = highest_tp_bmk.get(Fields.DP_ATTN.value)
+                    # Multinode configuration
+                    # spec_decoding defaults to "none" if not specified
+                    spec_decoding = bmk.get(Fields.SPEC_DECODING.value, "none")
 
-                seq_len_str = seq_len_to_str(isl, osl)
-                entry = {
-                    Fields.IMAGE.value: image,
-                    Fields.MODEL.value: model,
-                    Fields.PRECISION.value: precision,
-                    Fields.FRAMEWORK.value: framework,
-                    Fields.RUNNER.value: runner,
-                    Fields.ISL.value: isl,
-                    Fields.OSL.value: osl,
-                    Fields.TP.value: tp,
-                    Fields.EP.value: 1,  # Default
-                    Fields.DP_ATTN.value: False,  # Default
-                    Fields.CONC.value: conc,
-                    Fields.MAX_MODEL_LEN.value: isl + osl + 200,
-                    Fields.EXP_NAME.value: f"{model_code}_{seq_len_str}",
-                }
+                    prefill = bmk[Fields.PREFILL.value]
+                    decode = bmk[Fields.DECODE.value]
 
-                if ep is not None:
-                    entry[Fields.EP.value] = ep
-                if dp_attn is not None:
-                    entry[Fields.DP_ATTN.value] = dp_attn
+                    # Get concurrency values (can be list or range)
+                    conc_list = bmk.get(Fields.CONC_LIST.value)
+                    # If it's a list
+                    if conc_list:
+                        conc_values = conc_list
+                    # If it's a range
+                    else:
+                        conc_start = bmk[Fields.CONC_START.value]
+                        conc_end = bmk[Fields.CONC_END.value]
+                        conc_values = []
+                        conc = conc_start
+                        while conc <= conc_end:
+                            conc_values.append(conc)
+                            if conc == conc_end:
+                                break
+                            conc *= args.step_size
+                            if conc > conc_end:
+                                conc = conc_end
 
-                validate_matrix_output(entry, is_multinode)
-                matrix_values.append(entry)
-            else:
-                # Full sweep mode
-                for bmk in bmk_space:
-                    if is_multinode:
-                        # Skip multinode configs when --single-node is specified
-                        if not args.multi_node:
-                            continue
+                    # Apply max-conc filter if specified
+                    if args.max_conc is not None:
+                        conc_values = [c for c in conc_values if c <= args.max_conc]
+                        if not conc_values:
+                            continue  # Skip this bmk if no concurrency values remain
 
-                        # Multinode configuration
-                        # spec_decoding defaults to "none" if not specified
-                        spec_decoding = bmk.get(Fields.SPEC_DECODING.value, "none")
+                    # For multinode, create a single entry with conc as a list
+                    seq_len_str = seq_len_to_str(isl, osl)
+                    entry = {
+                        Fields.IMAGE.value: image,
+                        Fields.MODEL.value: model,
+                        Fields.PRECISION.value: precision,
+                        Fields.FRAMEWORK.value: framework,
+                        Fields.RUNNER.value: runner,
+                        Fields.ISL.value: isl,
+                        Fields.OSL.value: osl,
+                        Fields.SPEC_DECODING.value: spec_decoding,
+                        Fields.PREFILL.value: prefill,
+                        Fields.DECODE.value: decode,
+                        Fields.CONC.value: conc_values,  # Pass the entire list for multinode
+                        Fields.MAX_MODEL_LEN.value: isl + osl + 200,
+                        Fields.EXP_NAME.value: f"{model_code}_{seq_len_str}",
+                    }
 
-                        prefill = bmk[Fields.PREFILL.value]
-                        decode = bmk[Fields.DECODE.value]
+                    validate_matrix_output(entry, is_multinode)
+                    matrix_values.append(entry)
+                elif args.single_node:
+                    # Single-node configuration
+                    tp = bmk[Fields.TP.value]
+                    conc_start = bmk[Fields.CONC_START.value]
+                    conc_end = bmk[Fields.CONC_END.value]
+                    ep = bmk.get(Fields.EP.value)
+                    dp_attn = bmk.get(Fields.DP_ATTN.value)
 
-                        # Get concurrency values (can be list or range)
-                        conc_list = bmk.get(Fields.CONC_LIST.value)
-                        # If it's a list
-                        if conc_list:
-                            conc_values = conc_list
-                        # If it's a range
-                        else:
-                            conc_start = bmk[Fields.CONC_START.value]
-                            conc_end = bmk[Fields.CONC_END.value]
-                            conc_values = []
-                            conc = conc_start
-                            while conc <= conc_end:
-                                conc_values.append(conc)
-                                if conc == conc_end:
-                                    break
-                                conc *= args.step_size
-                                if conc > conc_end:
-                                    conc = conc_end
+                    # Apply max-tp filter if specified
+                    if args.max_tp and tp > args.max_tp:
+                        continue
 
-                        # For multinode, create a single entry with conc as a list
+                    # Apply max-ep filter if specified
+                    if args.max_ep and ep is not None and ep > args.max_ep:
+                        continue
+
+                    # Apply max-conc filter if specified
+                    if args.max_conc is not None:
+                        conc_end = min(conc_end, args.max_conc)
+                        if conc_start > conc_end:
+                            continue  # Skip this bmk if conc_start exceeds max_conc
+
+                    conc = conc_start
+                    while conc <= conc_end:
                         seq_len_str = seq_len_to_str(isl, osl)
                         entry = {
                             Fields.IMAGE.value: image,
@@ -169,56 +179,27 @@ def generate_full_sweep(args, all_config_data, runner_data):
                             Fields.RUNNER.value: runner,
                             Fields.ISL.value: isl,
                             Fields.OSL.value: osl,
-                            Fields.SPEC_DECODING.value: spec_decoding,
-                            Fields.PREFILL.value: prefill,
-                            Fields.DECODE.value: decode,
-                            Fields.CONC.value: conc_values,  # Pass the entire list for multinode
+                            Fields.TP.value: tp,
+                            Fields.CONC.value: conc,
                             Fields.MAX_MODEL_LEN.value: isl + osl + 200,
+                            Fields.EP.value: 1,  # Default
+                            Fields.DP_ATTN.value: False,  # Default
                             Fields.EXP_NAME.value: f"{model_code}_{seq_len_str}",
                         }
 
+                        if ep is not None:
+                            entry[Fields.EP.value] = ep
+                        if dp_attn is not None:
+                            entry[Fields.DP_ATTN.value] = dp_attn
+
                         validate_matrix_output(entry, is_multinode)
                         matrix_values.append(entry)
-                    elif args.single_node:
-                        # Single-node configuration
-                        tp = bmk[Fields.TP.value]
-                        conc_start = bmk[Fields.CONC_START.value]
-                        conc_end = bmk[Fields.CONC_END.value]
-                        ep = bmk.get(Fields.EP.value)
-                        dp_attn = bmk.get(Fields.DP_ATTN.value)
 
-                        conc = conc_start
-                        while conc <= conc_end:
-                            seq_len_str = seq_len_to_str(isl, osl)
-                            entry = {
-                                Fields.IMAGE.value: image,
-                                Fields.MODEL.value: model,
-                                Fields.PRECISION.value: precision,
-                                Fields.FRAMEWORK.value: framework,
-                                Fields.RUNNER.value: runner,
-                                Fields.ISL.value: isl,
-                                Fields.OSL.value: osl,
-                                Fields.TP.value: tp,
-                                Fields.CONC.value: conc,
-                                Fields.MAX_MODEL_LEN.value: isl + osl + 200,
-                                Fields.EP.value: 1,  # Default
-                                Fields.DP_ATTN.value: False,  # Default
-                                Fields.EXP_NAME.value: f"{model_code}_{seq_len_str}",
-                            }
-
-                            if ep is not None:
-                                entry[Fields.EP.value] = ep
-                            if dp_attn is not None:
-                                entry[Fields.DP_ATTN.value] = dp_attn
-
-                            validate_matrix_output(entry, is_multinode)
-                            matrix_values.append(entry)
-
-                            if conc == conc_end:
-                                break
-                            conc *= args.step_size
-                            if conc > conc_end:
-                                conc = conc_end
+                        if conc == conc_end:
+                            break
+                        conc *= args.step_size
+                        if conc > conc_end:
+                            conc = conc_end
 
     if len(matrix_values) == 0:
         raise ValueError("No configs found matching input filters.")
@@ -411,9 +392,22 @@ def main():
         help='Step size for concurrency values (default: 2)'
     )
     full_sweep_parser.add_argument(
-        '--test-mode',
-        action='store_true',
-        help='Test mode: only run highest TP with lowest concurrency for each matching config'
+        '--max-conc',
+        type=int,
+        required=False,
+        help='Maximum concurrency value to include (filters out higher concurrency values)'
+    )
+    full_sweep_parser.add_argument(
+        '--max-tp',
+        type=int,
+        required=False,
+        help='Maximum tensor parallelism value to include (single-node only)'
+    )
+    full_sweep_parser.add_argument(
+        '--max-ep',
+        type=int,
+        required=False,
+        help='Maximum expert parallelism value to include (single-node only)'
     )
     node_type_group = full_sweep_parser.add_mutually_exclusive_group(required=True)
     node_type_group.add_argument(
