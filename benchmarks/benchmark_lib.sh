@@ -232,6 +232,29 @@ def _safe_mc_apply(self, resps, docs):
     return out
 
 ex.MultiChoiceRegexFilter.apply = _safe_mc_apply
+
+def _le_parse_generations(outputs, **kwargs):
+      res = []
+      if not isinstance(outputs, list):
+          outputs = [outputs]
+      for out in (outputs or []):
+          try:
+              choices = out.get("choices", [])
+              tmp = ["" for _ in choices]
+              for choice in choices:
+                  idx = choice.get("index", 0)
+                  msg = (choice.get("message") or {})
+                  content = msg.get("content")
+                  if content in (None, "", []):
+                      content = msg.get("reasoning_content") or ""
+                  tmp[idx] = content
+          except Exception:
+              tmp = [""]
+          res.extend(tmp)
+      return res
+
+# Keep staticmethod semantics
+_LCC.parse_generations = staticmethod(_le_parse_generations)
 PY
     export PYTHONPATH="${patch_dir}:${PYTHONPATH:-}"
 }
