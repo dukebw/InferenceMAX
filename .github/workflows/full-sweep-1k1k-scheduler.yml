@@ -103,7 +103,7 @@ jobs:
         needs: get-gptoss-configs
         if: ${{ needs.get-gptoss-configs.outputs.multi-node-search-space-config != '[]' }}
         uses: ./.github/workflows/benchmark-multinode-tmpl.yml
-        name: dsr1 1k1k multi-node /
+        name: gptoss 1k1k multi-node /
         strategy:
             fail-fast: false
             matrix:

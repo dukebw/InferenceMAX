@@ -1,4 +1,4 @@
-name: "Full Sweep Scheduler - 1k1k"
+name: "Full Sweep Scheduler - 8k1k"
 
 on:
     workflow_dispatch:
@@ -16,8 +16,8 @@ jobs:
             - id: get-dsr1-configs
               run: |
                   pip install pydantic
-                  CONFIG_JSON_MULTI_NODE=$(python3 ${GITHUB_WORKSPACE}/utils/matrix-logic/generate_sweep_configs.py full-sweep --multi-node --seq-lens 1k1k --model-prefix dsr1 --config-files ${GITHUB_WORKSPACE}/.github/configs/nvidia-master.yaml --runner-config ${GITHUB_WORKSPACE}/.github/configs/runners.yaml)
-                  CONFIG_JSON_SINGLE_NODE=$(python3 ${GITHUB_WORKSPACE}/utils/matrix-logic/generate_sweep_configs.py full-sweep --single-node --seq-lens 1k1k --model-prefix dsr1 --config-files ${GITHUB_WORKSPACE}/.github/configs/nvidia-master.yaml --runner-config ${GITHUB_WORKSPACE}/.github/configs/runners.yaml)
+                  CONFIG_JSON_MULTI_NODE=$(python3 ${GITHUB_WORKSPACE}/utils/matrix-logic/generate_sweep_configs.py full-sweep --multi-node --seq-lens 8k1k --model-prefix dsr1 --config-files ${GITHUB_WORKSPACE}/.github/configs/nvidia-master.yaml --runner-config ${GITHUB_WORKSPACE}/.github/configs/runners.yaml)
+                  CONFIG_JSON_SINGLE_NODE=$(python3 ${GITHUB_WORKSPACE}/utils/matrix-logic/generate_sweep_configs.py full-sweep --single-node --seq-lens 8k1k --model-prefix dsr1 --config-files ${GITHUB_WORKSPACE}/.github/configs/nvidia-master.yaml --runner-config ${GITHUB_WORKSPACE}/.github/configs/runners.yaml)
                   echo "multi-node-search-space-config=$CONFIG_JSON_MULTI_NODE" >> $GITHUB_OUTPUT
                   echo "single-node-search-space-config=$CONFIG_JSON_SINGLE_NODE" >> $GITHUB_OUTPUT
 
@@ -33,8 +33,8 @@ jobs:
             - id: get-gptoss-configs
               run: |
                   pip install pydantic
-                  CONFIG_JSON_MULTI_NODE=$(python3 ${GITHUB_WORKSPACE}/utils/matrix-logic/generate_sweep_configs.py full-sweep --multi-node --seq-lens 1k1k --model-prefix gptoss --config-files ${GITHUB_WORKSPACE}/.github/configs/nvidia-master.yaml --runner-config ${GITHUB_WORKSPACE}/.github/configs/runners.yaml)
-                  CONFIG_JSON_SINGLE_NODE=$(python3 ${GITHUB_WORKSPACE}/utils/matrix-logic/generate_sweep_configs.py full-sweep --single-node --seq-lens 1k1k --model-prefix gptoss --config-files ${GITHUB_WORKSPACE}/.github/configs/nvidia-master.yaml --runner-config ${GITHUB_WORKSPACE}/.github/configs/runners.yaml)
+                  CONFIG_JSON_MULTI_NODE=$(python3 ${GITHUB_WORKSPACE}/utils/matrix-logic/generate_sweep_configs.py full-sweep --multi-node --seq-lens 8k1k --model-prefix gptoss --config-files ${GITHUB_WORKSPACE}/.github/configs/nvidia-master.yaml --runner-config ${GITHUB_WORKSPACE}/.github/configs/runners.yaml)
+                  CONFIG_JSON_SINGLE_NODE=$(python3 ${GITHUB_WORKSPACE}/utils/matrix-logic/generate_sweep_configs.py full-sweep --single-node --seq-lens 8k1k --model-prefix gptoss --config-files ${GITHUB_WORKSPACE}/.github/configs/nvidia-master.yaml --runner-config ${GITHUB_WORKSPACE}/.github/configs/runners.yaml)
                   echo "multi-node-search-space-config=$CONFIG_JSON_MULTI_NODE" >> $GITHUB_OUTPUT
                   echo "single-node-search-space-config=$CONFIG_JSON_SINGLE_NODE" >> $GITHUB_OUTPUT
 
@@ -42,7 +42,7 @@ jobs:
         needs: get-dsr1-configs
         if: ${{ needs.get-dsr1-configs.outputs.multi-node-search-space-config != '[]' }}
         uses: ./.github/workflows/benchmark-multinode-tmpl.yml
-        name: dsr1 1k1k multi-node /
+        name: dsr1 8k1k multi-node /
         strategy:
             fail-fast: false
             matrix:
@@ -57,7 +57,7 @@ jobs:
             model: ${{ matrix.config.model }}
             framework: ${{ matrix.config.framework }}
             precision: ${{ matrix.config.precision }}
-            exp-name: "dsr1_1k1k"
+            exp-name: "dsr1_8k1k"
             conc-list: ${{ toJson(matrix.config.conc) }}
             spec-decoding: ${{ matrix.config.spec-decoding }}
             disagg: ${{ matrix.config.disagg }}
@@ -78,14 +78,14 @@ jobs:
         needs: get-dsr1-configs
         if: ${{ needs.get-dsr1-configs.outputs.single-node-search-space-config != '[]' }}
         uses: ./.github/workflows/benchmark-tmpl.yml
-        name: dsr1 1k1k single-node /
+        name: dsr1 8k1k single-node /
         strategy:
             fail-fast: false
             matrix:
                 config: ${{ fromJson(needs.get-dsr1-configs.outputs.single-node-search-space-config) }}
         secrets: inherit
         with:
-            exp-name: "dsr1_1k1k"
+            exp-name: "dsr1_8k1k"
             isl: 8192
             osl: 1024
             max-model-len: 2048
@@ -103,7 +103,7 @@ jobs:
         needs: get-gptoss-configs
         if: ${{ needs.get-gptoss-configs.outputs.multi-node-search-space-config != '[]' }}
         uses: ./.github/workflows/benchmark-multinode-tmpl.yml
-        name: dsr1 1k1k multi-node /
+        name: gptoss 8k1k multi-node /
         strategy:
             fail-fast: false
             matrix:
@@ -118,7 +118,7 @@ jobs:
             model: ${{ matrix.config.model }}
             framework: ${{ matrix.config.framework }}
             precision: ${{ matrix.config.precision }}
-            exp-name: "dsr1_1k1k"
+            exp-name: "dsr1_8k1k"
             conc-list: ${{ toJson(matrix.config.conc) }}
             spec-decoding: ${{ matrix.config.spec-decoding }}
             disagg: ${{ matrix.config.disagg }}
@@ -139,14 +139,14 @@ jobs:
         needs: get-gptoss-configs
         if: ${{ needs.get-gptoss-configs.outputs.single-node-search-space-config != '[]' }}
         uses: ./.github/workflows/benchmark-tmpl.yml
-        name: gptoss 1k1k single-node /
+        name: gptoss 8k1k single-node /
         strategy:
             fail-fast: false
             matrix:
                 config: ${{ fromJson(needs.get-gptoss-configs.outputs.single-node-search-space-config) }}
         secrets: inherit
         with:
-            exp-name: "gptoss_1k1k"
+            exp-name: "gptoss_8k1k"
             isl: 8192
             osl: 1024
             max-model-len: 2048
@@ -171,7 +171,7 @@ jobs:
         uses: ./.github/workflows/collect-results.yml
         secrets: inherit
         with:
-            exp-name: "dsr1_1k1k"
+            exp-name: "dsr1_8k1k"
 
     collect-gptoss-results:
         needs:
@@ -184,7 +184,7 @@ jobs:
         uses: ./.github/workflows/collect-results.yml
         secrets: inherit
         with:
-            exp-name: "gptoss_1k1k"
+            exp-name: "gptoss_8k1k"
 
     calc-success-rate:
         needs: [collect-dsr1-results, collect-gptoss-results]
