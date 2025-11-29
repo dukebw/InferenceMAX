@@ -262,7 +262,7 @@ append_lm_eval_summary() {
     local summary_md="${out_dir}/SUMMARY.md"
     mkdir -p "$out_dir" || true
 
-    python3 utils/lm_eval_to_md.py \
+    PYTHONNOUSERSITE=1 PYTHONPATH="" python3 -S utils/lm_eval_to_md.py \
         --results-dir "$out_dir" \
         --task "${task}" \
         --framework "${FRAMEWORK}" \
@@ -280,6 +280,8 @@ append_lm_eval_summary() {
             cat "$summary_md" >> "$GITHUB_STEP_SUMMARY" || true
         fi
     fi
+
+    # Note: Per policy, eval outputs stay under /tmp only; do not copy to workspace.
 
     echo "Results saved to: ${summary_md}"
 }
