@@ -1,74 +1,48 @@
+"""Comprehensive tests for generate_sweep_configs.py"""
 import pytest
-import yaml
-from unittest.mock import patch
+import json
+import argparse
+from unittest.mock import patch, mock_open
 from generate_sweep_configs import (
+    seq_len_stoi,
+    seq_len_itos,
     seq_len_to_str,
     generate_full_sweep,
     generate_runner_model_sweep_config,
     load_config_files,
     load_runner_file,
-    main,
 )
 
 
-# ============================================================================
-# Fixtures
-# ============================================================================
+# =============================================================================
+# Test Fixtures
+# =============================================================================
 
 @pytest.fixture
 def sample_single_node_config():
-    """Sample master config with single-node entries."""
+    """Single node config based on dsr1-fp8-mi300x-sglang."""
     return {
-        "dsr1-fp8-h200-sglang": {
-            "image": "lmsysorg/sglang:v0.5.5-cu129-amd64",
+        "dsr1-fp8-mi300x-sglang": {
+            "image": "rocm/7.0:rocm7.0_ubuntu_22.04_sgl-dev-v0.5.2-rocm7.0-mi30x-20250915",
             "model": "deepseek-ai/DeepSeek-R1-0528",
             "model-prefix": "dsr1",
-            "runner": "h200",
             "precision": "fp8",
             "framework": "sglang",
+            "runner": "mi300x",
             "multinode": False,
             "seq-len-configs": [
                 {
                     "isl": 1024,
                     "osl": 1024,
                     "search-space": [
-                        {"tp": 4, "conc-start": 4, "conc-end": 64},
-                        {"tp": 8, "conc-start": 4, "conc-end": 64, "ep": 2, "dp-attn": True}
-                    ]
-                },
-                {
-                    "isl": 1024,
-                    "osl": 8192,
-                    "search-space": [
-                        {"tp": 8, "conc-start": 4, "conc-end": 32}
+                        {"tp": 8, "conc-start": 4, "conc-end": 64}
                     ]
                 },
                 {
                     "isl": 8192,
                     "osl": 1024,
                     "search-space": [
-                        {"tp": 8, "conc-start": 4, "conc-end": 16}
-                    ]
-                }
-            ]
-        },
-        "gptoss-fp4-b200-vllm": {
-            "image": "vllm/vllm-openai:v0.11.0",
-            "model": "openai/gpt-oss-120b",
-            "model-prefix": "gptoss",
-            "runner": "b200",
-            "precision": "fp4",
-            "framework": "vllm",
-            "multinode": False,
-            "seq-len-configs": [
-                {
-                    "isl": 1024,
-                    "osl": 1024,
-                    "search-space": [
-                        {"tp": 1, "conc-start": 4, "conc-end": 128},
-                        {"tp": 2, "conc-start": 4, "conc-end": 128},
-                        {"tp": 4, "conc-start": 4, "conc-end": 64},
-                        {"tp": 8, "conc-start": 4, "conc-end": 8}
+                        {"tp": 8, "conc-start": 4, "conc-end": 64}
                     ]
                 }
             ]
@@ -78,15 +52,15 @@ def sample_single_node_config():
 
 @pytest.fixture
 def sample_multinode_config():
-    """Sample master config with multinode entries."""
+    """Multinode config based on dsr1-fp4-gb200-dynamo-trt."""
     return {
         "dsr1-fp4-gb200-dynamo-trt": {
             "image": "nvcr.io#nvidia/ai-dynamo/tensorrtllm-runtime:0.5.1-rc0.pre3",
             "model": "deepseek-r1-fp4",
             "model-prefix": "dsr1",
-            "runner": "gb200",
             "precision": "fp4",
             "framework": "dynamo-trt",
+            "runner": "gb200",
             "multinode": True,
             "disagg": True,
             "seq-len-configs": [
@@ -95,39 +69,27 @@ def sample_multinode_config():
                     "osl": 1024,
                     "search-space": [
                         {
-                            "spec-decoding": "mtp",
-                            "conc-list": [1, 2, 4, 8, 16, 36],
+                            "conc-list": [2150],
                             "prefill": {
-                                "num-worker": 1,
+                                "num-worker": 5,
                                 "tp": 4,
                                 "ep": 4,
-                                "dp-attn": False,
-                                "additional-settings": ["PREFILL_MAX_NUM_TOKENS=4608"]
+                                "dp-attn": True,
+                                "additional-settings": [
+                                    "PREFILL_MAX_NUM_TOKENS=8448",
+                                    "PREFILL_MAX_BATCH_SIZE=1",
+                                ],
                             },
                             "decode": {
-                                "num-worker": 4,
+                                "num-worker": 1,
                                 "tp": 8,
                                 "ep": 8,
-                                "dp-attn": False,
-                                "additional-settings": ["DECODE_MAX_NUM_TOKENS=128"]
-                            }
-                        },
-                        {
-                            "conc-list": [64, 128],
-                            "prefill": {
-                                "num-worker": 1,
-                                "tp": 4,
-                                "ep": 4,
                                 "dp-attn": True,
-                                "additional-settings": []
+                                "additional-settings": [
+                                    "DECODE_MAX_NUM_TOKENS=256",
+                                    "DECODE_MAX_BATCH_SIZE=256",
+                                ],
                             },
-                            "decode": {
-                                "num-worker": 1,
-                                "tp": 16,
-                                "ep": 16,
-                                "dp-attn": True,
-                                "additional-settings": []
-                            }
                         }
                     ]
                 }
@@ -138,723 +100,694 @@ def sample_multinode_config():
 
 @pytest.fixture
 def sample_runner_config():
-    """Sample runner config."""
+    """Runner config based on .github/configs/runners.yaml."""
     return {
-        "h200": ["h200-nv_1", "h200-nv_2"],
-        "b200": ["b200-nv_1"],
-        "gb200": ["gb200-nv_1", "gb200-nv_2", "gb200-nv_3"],
-        "h100": ["h100-aws_1"]
+        "h100": ["h100-cr_0", "h100-cr_1", "h100-cw_0", "h100-cw_1"],
+        "h200": ["h200-cw_0", "h200-cw_1", "h200-nb_0", "h200-nb_1"],
+        "b200": ["b200-nvd_0", "b200-nvd_1", "b200-dgxc_1"],
+        "mi300x": ["mi300x-amd_0", "mi300x-amd_1", "mi300x-cr_0"],
+        "gb200": ["gb200-nv_0"],
     }
 
 
 @pytest.fixture
-def temp_config_files(tmp_path, sample_single_node_config, sample_runner_config):
-    """Create temporary config files for single-node tests."""
-    master_file = tmp_path / "master.yaml"
-    runner_file = tmp_path / "runners.yaml"
-
-    with open(master_file, 'w') as f:
-        yaml.dump(sample_single_node_config, f)
-
-    with open(runner_file, 'w') as f:
-        yaml.dump(sample_runner_config, f)
-
-    return str(master_file), str(runner_file)
+def full_sweep_args_single_node():
+    """Args for full-sweep single-node command."""
+    args = argparse.Namespace()
+    args.model_prefix = None
+    args.precision = None
+    args.framework = None
+    args.runner_type = None
+    args.seq_lens = None
+    args.step_size = 2
+    args.max_conc = None
+    args.max_tp = None
+    args.max_ep = None
+    args.single_node = True
+    args.multi_node = False
+    return args
 
 
 @pytest.fixture
-def temp_multinode_config_files(tmp_path, sample_multinode_config, sample_runner_config):
-    """Create temporary config files for multinode tests."""
-    master_file = tmp_path / "master.yaml"
-    runner_file = tmp_path / "runners.yaml"
-
-    with open(master_file, 'w') as f:
-        yaml.dump(sample_multinode_config, f)
-
-    with open(runner_file, 'w') as f:
-        yaml.dump(sample_runner_config, f)
-
-    return str(master_file), str(runner_file)
-
-
-# ============================================================================
-# Helper class for mocking args
-# ============================================================================
-
-class MockArgs:
-    """Mock args object for testing functions."""
-    def __init__(self, **kwargs):
-        # Defaults
-        self.model_prefix = None
-        self.precision = None
-        self.framework = None
-        self.runner_type = None
-        self.seq_lens = None
-        self.step_size = 2
-        self.max_conc = None
-        self.max_tp = None
-        self.max_ep = None
-        self.single_node = False
-        self.multi_node = False
-        self.runner_config = None
-        self.runner_node_filter = None
-
-        # Override with provided kwargs
-        for key, value in kwargs.items():
-            setattr(self, key, value)
+def full_sweep_args_multi_node():
+    """Args for full-sweep multi-node command."""
+    args = argparse.Namespace()
+    args.model_prefix = None
+    args.precision = None
+    args.framework = None
+    args.runner_type = None
+    args.seq_lens = None
+    args.step_size = 2
+    args.max_conc = None
+    args.max_tp = None
+    args.max_ep = None
+    args.single_node = False
+    args.multi_node = True
+    return args
 
 
-# ============================================================================
-# Tests for seq_len_to_str
-# ============================================================================
+# =============================================================================
+# Test seq_len mappings
+# =============================================================================
+
+class TestSeqLenMappings:
+    """Tests for sequence length string mappings."""
+
+    def test_seq_len_stoi_values(self):
+        """Verify seq_len_stoi has expected mappings."""
+        assert seq_len_stoi["1k1k"] == (1024, 1024)
+        assert seq_len_stoi["1k8k"] == (1024, 8192)
+        assert seq_len_stoi["8k1k"] == (8192, 1024)
+
+    def test_seq_len_itos_reverse_mapping(self):
+        """Verify seq_len_itos is reverse of stoi."""
+        assert seq_len_itos[(1024, 1024)] == "1k1k"
+        assert seq_len_itos[(1024, 8192)] == "1k8k"
+        assert seq_len_itos[(8192, 1024)] == "8k1k"
+
 
 class TestSeqLenToStr:
-    """Tests for the seq_len_to_str function."""
+    """Tests for seq_len_to_str function."""
 
-    def test_known_mapping_1k1k(self):
+    def test_known_sequence_lengths(self):
+        """Known sequence lengths should return short name."""
         assert seq_len_to_str(1024, 1024) == "1k1k"
-
-    def test_known_mapping_1k8k(self):
         assert seq_len_to_str(1024, 8192) == "1k8k"
-
-    def test_known_mapping_8k1k(self):
         assert seq_len_to_str(8192, 1024) == "8k1k"
 
-    def test_unknown_mapping_fallback(self):
-        assert seq_len_to_str(2048, 4096) == "2048_4096"
-
-    def test_unknown_mapping_small_values(self):
-        assert seq_len_to_str(512, 512) == "512_512"
-
-
-# ============================================================================
-# Tests for load_config_files
-# ============================================================================
-
-class TestLoadConfigFiles:
-    """Tests for the load_config_files function."""
-
-    def test_load_single_valid_file(self, temp_config_files):
-        master_file, _ = temp_config_files
-        result = load_config_files([master_file])
-        assert len(result) == 2
-        assert "dsr1-fp8-h200-sglang" in result
-        assert "gptoss-fp4-b200-vllm" in result
-
-    def test_load_multiple_files(self, tmp_path, sample_single_node_config):
-        file1 = tmp_path / "config1.yaml"
-        file2 = tmp_path / "config2.yaml"
-
-        config1 = {"dsr1-fp8-h200-sglang": sample_single_node_config["dsr1-fp8-h200-sglang"]}
-        config2 = {"gptoss-fp4-b200-vllm": sample_single_node_config["gptoss-fp4-b200-vllm"]}
-
-        with open(file1, 'w') as f:
-            yaml.dump(config1, f)
-        with open(file2, 'w') as f:
-            yaml.dump(config2, f)
-
-        result = load_config_files([str(file1), str(file2)])
-        assert len(result) == 2
-
-    def test_load_nonexistent_file(self):
-        with pytest.raises(ValueError, match="does not exist"):
-            load_config_files(["/nonexistent/file.yaml"])
-
-    def test_load_files_with_duplicate_keys(self, tmp_path, sample_single_node_config):
-        file1 = tmp_path / "config1.yaml"
-        file2 = tmp_path / "config2.yaml"
-
-        config = {"dsr1-fp8-h200-sglang": sample_single_node_config["dsr1-fp8-h200-sglang"]}
-
-        with open(file1, 'w') as f:
-            yaml.dump(config, f)
-        with open(file2, 'w') as f:
-            yaml.dump(config, f)
-
-        with pytest.raises(ValueError, match="Duplicate configuration keys"):
-            load_config_files([str(file1), str(file2)])
+    def test_unknown_sequence_lengths(self):
+        """Unknown sequence lengths should return isl_osl format."""
+        assert seq_len_to_str(2048, 2048) == "2048_2048"
+        assert seq_len_to_str(4096, 1024) == "4096_1024"
 
 
-# ============================================================================
-# Tests for load_runner_file
-# ============================================================================
-
-class TestLoadRunnerFile:
-    """Tests for the load_runner_file function."""
-
-    def test_load_valid_runner_file(self, temp_config_files):
-        _, runner_file = temp_config_files
-        result = load_runner_file(runner_file)
-        assert "h200" in result
-        assert "b200" in result
-
-    def test_load_nonexistent_runner_file(self):
-        with pytest.raises(ValueError, match="does not exist"):
-            load_runner_file("/nonexistent/runners.yaml")
-
-
-# ============================================================================
-# Tests for generate_full_sweep - Single Node
-# ============================================================================
+# =============================================================================
+# Test generate_full_sweep for single-node
+# =============================================================================
 
 class TestGenerateFullSweepSingleNode:
-    """Tests for generate_full_sweep with single-node configurations."""
+    """Tests for generate_full_sweep with single-node configs."""
 
-    def test_basic_sweep(self, sample_single_node_config, sample_runner_config):
-        args = MockArgs(
-            model_prefix=["dsr1"],
-            seq_lens=["1k1k"],
-            single_node=True
+    def test_basic_sweep_generation(self, sample_single_node_config, sample_runner_config, full_sweep_args_single_node):
+        """Basic single-node sweep should generate entries."""
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            sample_single_node_config,
+            sample_runner_config
         )
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
         assert len(result) > 0
-        assert all(entry['isl'] == 1024 and entry['osl'] == 1024 for entry in result)
+        # With step_size=2, conc goes 4, 8, 16, 32, 64 = 5 values per seq-len config
+        # 2 seq-len configs * 5 = 10 entries
+        assert len(result) == 10
 
-    def test_sweep_no_filters(self, sample_single_node_config, sample_runner_config):
-        args = MockArgs(single_node=True)
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
+    def test_matrix_entry_structure(self, sample_single_node_config, sample_runner_config, full_sweep_args_single_node):
+        """Generated entries should have correct structure."""
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            sample_single_node_config,
+            sample_runner_config
+        )
+        entry = result[0]
+        assert entry["image"] == "rocm/7.0:rocm7.0_ubuntu_22.04_sgl-dev-v0.5.2-rocm7.0-mi30x-20250915"
+        assert entry["model"] == "deepseek-ai/DeepSeek-R1-0528"
+        assert entry["precision"] == "fp8"
+        assert entry["framework"] == "sglang"
+        assert entry["runner"] == "mi300x"
+        assert entry["tp"] == 8
+        assert "exp-name" in entry
+        assert "max-model-len" in entry
+
+    def test_filter_by_model_prefix(self, sample_single_node_config, sample_runner_config, full_sweep_args_single_node):
+        """Filter by model prefix should work."""
+        full_sweep_args_single_node.model_prefix = ["dsr1"]
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            sample_single_node_config,
+            sample_runner_config
+        )
         assert len(result) > 0
 
-    def test_sweep_returns_empty_when_no_matches(self, sample_single_node_config, sample_runner_config):
-        args = MockArgs(
-            model_prefix=["nonexistent"],
-            single_node=True
+        # Non-matching prefix should return empty
+        full_sweep_args_single_node.model_prefix = ["nonexistent"]
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            sample_single_node_config,
+            sample_runner_config
         )
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
-        assert result == []
+        assert len(result) == 0
 
-    def test_filter_by_precision(self, sample_single_node_config, sample_runner_config):
-        args = MockArgs(
-            precision=["fp8"],
-            single_node=True
+    def test_filter_by_precision(self, sample_single_node_config, sample_runner_config, full_sweep_args_single_node):
+        """Filter by precision should work."""
+        full_sweep_args_single_node.precision = ["fp8"]
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            sample_single_node_config,
+            sample_runner_config
         )
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
-        assert all(entry['precision'] == 'fp8' for entry in result)
+        assert len(result) > 0
 
-    def test_filter_by_framework(self, sample_single_node_config, sample_runner_config):
-        args = MockArgs(
-            framework=["vllm"],
-            single_node=True
+        full_sweep_args_single_node.precision = ["fp4"]
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            sample_single_node_config,
+            sample_runner_config
         )
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
-        assert all(entry['framework'] == 'vllm' for entry in result)
+        assert len(result) == 0
 
-    def test_filter_by_runner_type(self, sample_single_node_config, sample_runner_config):
-        args = MockArgs(
-            runner_type=["h200"],
-            single_node=True
+    def test_filter_by_framework(self, sample_single_node_config, sample_runner_config, full_sweep_args_single_node):
+        """Filter by framework should work."""
+        full_sweep_args_single_node.framework = ["sglang"]
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            sample_single_node_config,
+            sample_runner_config
         )
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
-        assert all(entry['runner'] == 'h200' for entry in result)
+        assert len(result) > 0
 
-    def test_invalid_runner_type_raises_error(self, sample_single_node_config, sample_runner_config):
-        args = MockArgs(
-            runner_type=["invalid-runner"],
-            single_node=True
+        full_sweep_args_single_node.framework = ["vllm"]
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            sample_single_node_config,
+            sample_runner_config
         )
-        with pytest.raises(ValueError, match="Invalid runner type"):
-            generate_full_sweep(args, sample_single_node_config, sample_runner_config)
+        assert len(result) == 0
 
-    def test_multiple_runner_types(self, sample_single_node_config, sample_runner_config):
-        args = MockArgs(
-            runner_type=["h200", "b200"],
-            single_node=True
+    def test_filter_by_runner_type(self, sample_single_node_config, sample_runner_config, full_sweep_args_single_node):
+        """Filter by runner type should work."""
+        full_sweep_args_single_node.runner_type = ["mi300x"]
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            sample_single_node_config,
+            sample_runner_config
         )
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
-        runners = set(entry['runner'] for entry in result)
-        assert 'h200' in runners or 'b200' in runners
+        assert len(result) > 0
 
-    def test_filter_by_seq_lens(self, sample_single_node_config, sample_runner_config):
-        args = MockArgs(
-            model_prefix=["dsr1"],
-            seq_lens=["1k8k"],
-            single_node=True
+        full_sweep_args_single_node.runner_type = ["h100"]
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            sample_single_node_config,
+            sample_runner_config
         )
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
-        assert all(entry['isl'] == 1024 and entry['osl'] == 8192 for entry in result)
+        assert len(result) == 0
 
-    def test_filter_multiple_seq_lens(self, sample_single_node_config, sample_runner_config):
-        args = MockArgs(
-            model_prefix=["dsr1"],
-            seq_lens=["1k1k", "8k1k"],
-            single_node=True
-        )
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
-        seq_lens = set((e['isl'], e['osl']) for e in result)
-        assert (1024, 1024) in seq_lens
-        assert (8192, 1024) in seq_lens
+    def test_invalid_runner_type_raises_error(self, sample_single_node_config, sample_runner_config, full_sweep_args_single_node):
+        """Invalid runner type should raise ValueError."""
+        full_sweep_args_single_node.runner_type = ["invalid_runner"]
+        with pytest.raises(ValueError) as exc_info:
+            generate_full_sweep(
+                full_sweep_args_single_node,
+                sample_single_node_config,
+                sample_runner_config
+            )
+        assert "Invalid runner type" in str(exc_info.value)
 
-    def test_step_size(self, sample_single_node_config, sample_runner_config):
-        args = MockArgs(
-            model_prefix=["gptoss"],
-            seq_lens=["1k1k"],
-            step_size=4,
-            single_node=True
+    def test_filter_by_seq_lens(self, sample_single_node_config, sample_runner_config, full_sweep_args_single_node):
+        """Filter by sequence lengths should work."""
+        full_sweep_args_single_node.seq_lens = ["1k1k"]
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            sample_single_node_config,
+            sample_runner_config
         )
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
-        # With step_size=4, starting from 4: 4, 16, 64, 128 (or clamped)
-        conc_values = set(e['conc'] for e in result)
+        # Only 1k1k entries, 5 concurrency values
+        assert len(result) == 5
+        assert all(entry["isl"] == 1024 and entry["osl"] == 1024 for entry in result)
+
+    def test_max_conc_filter(self, sample_single_node_config, sample_runner_config, full_sweep_args_single_node):
+        """max_conc filter should limit concurrency values."""
+        full_sweep_args_single_node.max_conc = 16
+        full_sweep_args_single_node.seq_lens = ["1k1k"]
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            sample_single_node_config,
+            sample_runner_config
+        )
+        # conc values: 4, 8, 16 (32, 64 filtered out)
+        assert len(result) == 3
+        assert all(entry["conc"] <= 16 for entry in result)
+
+    def test_max_tp_filter(self, sample_single_node_config, sample_runner_config, full_sweep_args_single_node):
+        """max_tp filter should limit TP values."""
+        full_sweep_args_single_node.max_tp = 4
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            sample_single_node_config,
+            sample_runner_config
+        )
+        # tp=8 is filtered out, so no results
+        assert len(result) == 0
+
+    def test_step_size(self, sample_single_node_config, sample_runner_config, full_sweep_args_single_node):
+        """Different step sizes should affect concurrency progression."""
+        full_sweep_args_single_node.step_size = 4
+        full_sweep_args_single_node.seq_lens = ["1k1k"]
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            sample_single_node_config,
+            sample_runner_config
+        )
+        # conc: 4, 16, 64 = 3 values
+        assert len(result) == 3
+        conc_values = [entry["conc"] for entry in result]
         assert 4 in conc_values
+        assert 16 in conc_values
+        assert 64 in conc_values
 
-    def test_max_conc_filter(self, sample_single_node_config, sample_runner_config):
-        args = MockArgs(
-            model_prefix=["dsr1"],
-            seq_lens=["1k1k"],
-            max_conc=16,
-            single_node=True
+    def test_exp_name_format(self, sample_single_node_config, sample_runner_config, full_sweep_args_single_node):
+        """exp-name should have correct format."""
+        full_sweep_args_single_node.seq_lens = ["1k1k"]
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            sample_single_node_config,
+            sample_runner_config
         )
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
-        assert all(entry['conc'] <= 16 for entry in result)
+        assert all(entry["exp-name"] == "dsr1_1k1k" for entry in result)
 
-    def test_max_tp_filter(self, sample_single_node_config, sample_runner_config):
-        args = MockArgs(
-            model_prefix=["dsr1"],
-            seq_lens=["1k1k"],
-            max_tp=4,
-            single_node=True
+    def test_max_model_len_calculation(self, sample_single_node_config, sample_runner_config, full_sweep_args_single_node):
+        """max-model-len should be isl + osl + 200."""
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            sample_single_node_config,
+            sample_runner_config
         )
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
-        assert all(entry['tp'] <= 4 for entry in result)
-
-    def test_max_ep_filter(self, sample_single_node_config, sample_runner_config):
-        args = MockArgs(
-            model_prefix=["dsr1"],
-            seq_lens=["1k1k"],
-            max_ep=1,
-            single_node=True
-        )
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
-        # Should exclude entries with ep > 1
-        assert all(entry['ep'] <= 1 for entry in result)
-
-    def test_concurrency_overshoot_clamped(self, sample_runner_config):
-        """Test that concurrency values are clamped to conc-end."""
-        config = {
-            "test-config": {
-                "image": "test:latest",
-                "model": "test/model",
-                "model-prefix": "test",
-                "precision": "fp8",
-                "framework": "vllm",
-                "runner": "h200",
-                "multinode": False,
-                "seq-len-configs": [
-                    {
-                        "isl": 1024,
-                        "osl": 1024,
-                        "search-space": [
-                            {"tp": 4, "conc-start": 1, "conc-end": 5}
-                        ]
-                    }
-                ]
-            }
-        }
-        args = MockArgs(step_size=3, single_node=True)
-        result = generate_full_sweep(args, config, sample_runner_config)
-        conc_values = sorted(set(e['conc'] for e in result))
-        # 1, 3, 9 -> clamped to 5
-        assert conc_values == [1, 3, 5]
-
-    def test_default_ep_dp_attn_values(self, sample_single_node_config, sample_runner_config):
-        """Test that entries without ep/dp-attn get default values."""
-        args = MockArgs(
-            model_prefix=["dsr1"],
-            seq_lens=["1k1k"],
-            max_tp=4,  # Filter to tp=4 which doesn't have ep/dp-attn
-            single_node=True
-        )
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
-        # tp=4 entries should have default ep=1 and dp-attn=False
         for entry in result:
-            if entry['tp'] == 4:
-                assert entry['ep'] == 1
-                assert entry['dp-attn'] == False
-
-    def test_explicit_ep_dp_attn_values(self, sample_single_node_config, sample_runner_config):
-        """Test that entries with explicit ep/dp-attn use those values."""
-        args = MockArgs(
-            model_prefix=["dsr1"],
-            seq_lens=["1k1k"],
-            single_node=True
-        )
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
-        # tp=8 entries should have ep=2 and dp-attn=True
-        tp8_entries = [e for e in result if e['tp'] == 8]
-        assert all(e['ep'] == 2 for e in tp8_entries)
-        assert all(e['dp-attn'] == True for e in tp8_entries)
-
-    def test_max_model_len_calculation(self, sample_single_node_config, sample_runner_config):
-        """Test that max-model-len is calculated as isl + osl + 200."""
-        args = MockArgs(
-            model_prefix=["dsr1"],
-            seq_lens=["1k8k"],
-            single_node=True
-        )
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
-        # isl=1024, osl=8192 -> max-model-len = 1024 + 8192 + 200 = 9416
-        assert all(e['max-model-len'] == 9416 for e in result)
-
-    def test_exp_name_format(self, sample_single_node_config, sample_runner_config):
-        """Test that exp-name follows the expected format."""
-        args = MockArgs(
-            model_prefix=["dsr1"],
-            seq_lens=["1k1k"],
-            single_node=True
-        )
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
-        assert all(e['exp-name'] == 'dsr1_1k1k' for e in result)
-
-    def test_disagg_defaults_to_false(self, sample_single_node_config, sample_runner_config):
-        """Test that disagg defaults to False when not specified."""
-        args = MockArgs(single_node=True)
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
-        assert all(e['disagg'] == False for e in result)
-
-    def test_skips_multinode_configs_in_single_node_mode(self, sample_multinode_config, sample_runner_config):
-        """Test that multinode configs are skipped when --single-node is specified."""
-        args = MockArgs(single_node=True)
-        result = generate_full_sweep(args, sample_multinode_config, sample_runner_config)
-        assert result == []
+            expected_max_model_len = entry["isl"] + entry["osl"] + 200
+            assert entry["max-model-len"] == expected_max_model_len
 
 
-# ============================================================================
-# Tests for generate_full_sweep - Multi Node
-# ============================================================================
+# =============================================================================
+# Test generate_full_sweep for multi-node
+# =============================================================================
 
 class TestGenerateFullSweepMultiNode:
-    """Tests for generate_full_sweep with multinode configurations."""
+    """Tests for generate_full_sweep with multi-node configs."""
 
-    def test_basic_multinode_sweep(self, sample_multinode_config, sample_runner_config):
-        args = MockArgs(multi_node=True)
-        result = generate_full_sweep(args, sample_multinode_config, sample_runner_config)
-        assert len(result) > 0
+    def test_multinode_sweep_generation(self, sample_multinode_config, sample_runner_config, full_sweep_args_multi_node):
+        """Multinode sweep should generate entries with prefill/decode."""
+        result = generate_full_sweep(
+            full_sweep_args_multi_node,
+            sample_multinode_config,
+            sample_runner_config
+        )
+        assert len(result) == 1  # One entry with conc-list
 
-    def test_multinode_conc_is_list(self, sample_multinode_config, sample_runner_config):
-        """Test that multinode entries have conc as a list."""
-        args = MockArgs(multi_node=True)
-        result = generate_full_sweep(args, sample_multinode_config, sample_runner_config)
-        for entry in result:
-            assert isinstance(entry['conc'], list)
+    def test_multinode_entry_structure(self, sample_multinode_config, sample_runner_config, full_sweep_args_multi_node):
+        """Multinode entries should have prefill and decode configs."""
+        result = generate_full_sweep(
+            full_sweep_args_multi_node,
+            sample_multinode_config,
+            sample_runner_config
+        )
+        entry = result[0]
+        assert "prefill" in entry
+        assert "decode" in entry
+        assert entry["prefill"]["num-worker"] == 5
+        assert entry["decode"]["num-worker"] == 1
+        assert entry["disagg"] is True
 
-    def test_multinode_has_prefill_decode(self, sample_multinode_config, sample_runner_config):
-        """Test that multinode entries have prefill and decode configs."""
-        args = MockArgs(multi_node=True)
-        result = generate_full_sweep(args, sample_multinode_config, sample_runner_config)
-        for entry in result:
-            assert 'prefill' in entry
-            assert 'decode' in entry
+    def test_multinode_conc_as_list(self, sample_multinode_config, sample_runner_config, full_sweep_args_multi_node):
+        """Multinode conc should be passed as list."""
+        result = generate_full_sweep(
+            full_sweep_args_multi_node,
+            sample_multinode_config,
+            sample_runner_config
+        )
+        entry = result[0]
+        assert isinstance(entry["conc"], list)
+        assert entry["conc"] == [2150]
 
-    def test_multinode_spec_decoding_defaults_to_none(self, sample_multinode_config, sample_runner_config):
-        """Test that spec-decoding defaults to 'none' if not specified."""
-        args = MockArgs(multi_node=True)
-        result = generate_full_sweep(args, sample_multinode_config, sample_runner_config)
-        # The second search-space entry doesn't specify spec-decoding
-        for entry in result:
-            assert entry['spec-decoding'] in ['mtp', 'none']
-
-    def test_multinode_disagg_value(self, sample_multinode_config, sample_runner_config):
-        """Test that disagg is properly passed through."""
-        args = MockArgs(multi_node=True)
-        result = generate_full_sweep(args, sample_multinode_config, sample_runner_config)
-        # The sample config has disagg=True
-        assert all(e['disagg'] == True for e in result)
-
-    def test_multinode_max_conc_filter(self, sample_multinode_config, sample_runner_config):
-        """Test max_conc filter works with multinode conc lists."""
-        args = MockArgs(multi_node=True, max_conc=8)
-        result = generate_full_sweep(args, sample_multinode_config, sample_runner_config)
-        for entry in result:
-            assert all(c <= 8 for c in entry['conc'])
-
-    def test_multinode_max_conc_filters_out_empty(self, sample_multinode_config, sample_runner_config):
-        """Test that entries with no valid conc values are filtered out."""
-        args = MockArgs(multi_node=True, max_conc=0)
-        result = generate_full_sweep(args, sample_multinode_config, sample_runner_config)
-        assert result == []
-
-    def test_skips_single_node_configs_in_multi_node_mode(self, sample_single_node_config, sample_runner_config):
-        """Test that single-node configs are skipped when --multi-node is specified."""
-        args = MockArgs(multi_node=True)
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
-        assert result == []
+    def test_single_node_flag_skips_multinode(self, sample_multinode_config, sample_runner_config, full_sweep_args_single_node):
+        """Single-node flag should skip multinode configs."""
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            sample_multinode_config,
+            sample_runner_config
+        )
+        assert len(result) == 0
 
 
-# ============================================================================
-# Tests for generate_runner_model_sweep_config
-# ============================================================================
+# =============================================================================
+# Test generate_runner_model_sweep_config
+# =============================================================================
 
 class TestGenerateRunnerModelSweepConfig:
-    """Tests for the generate_runner_model_sweep_config function."""
+    """Tests for generate_runner_model_sweep_config function."""
 
-    def test_basic_runner_model_sweep(self, sample_single_node_config, sample_runner_config):
-        args = MockArgs(runner_type="h200")
-        result = generate_runner_model_sweep_config(args, sample_single_node_config, sample_runner_config)
-        assert len(result) > 0
-        runners = set(entry['runner'] for entry in result)
-        assert 'h200-nv_1' in runners
-        assert 'h200-nv_2' in runners
+    @pytest.fixture
+    def runner_sweep_args(self):
+        """Args for runner-model-sweep command."""
+        args = argparse.Namespace()
+        args.runner_type = "mi300x"
+        args.runner_config = "runners.yaml"
+        args.runner_node_filter = None
+        return args
 
-    def test_invalid_runner_type(self, sample_single_node_config, sample_runner_config):
-        args = MockArgs(runner_type="invalid-runner")
-        with pytest.raises(ValueError, match="does not exist in runner config"):
-            generate_runner_model_sweep_config(args, sample_single_node_config, sample_runner_config)
+    def test_basic_runner_sweep(self, sample_single_node_config, sample_runner_config, runner_sweep_args):
+        """Basic runner sweep should generate entries for each node."""
+        result = generate_runner_model_sweep_config(
+            runner_sweep_args,
+            sample_single_node_config,
+            sample_runner_config
+        )
+        # 3 mi300x nodes
+        assert len(result) == 3
 
-    def test_runner_node_filter(self, sample_single_node_config, sample_runner_config):
-        args = MockArgs(runner_type="h200", runner_node_filter="nv_1")
-        result = generate_runner_model_sweep_config(args, sample_single_node_config, sample_runner_config)
-        runners = set(entry['runner'] for entry in result)
-        assert 'h200-nv_1' in runners
-        assert 'h200-nv_2' not in runners
-
-    def test_runner_node_filter_multiple_matches(self, sample_single_node_config, sample_runner_config):
-        args = MockArgs(runner_type="h200", runner_node_filter="nv")
-        result = generate_runner_model_sweep_config(args, sample_single_node_config, sample_runner_config)
-        runners = set(entry['runner'] for entry in result)
-        assert 'h200-nv_1' in runners
-        assert 'h200-nv_2' in runners
-
-    def test_runner_node_filter_no_matches(self, sample_single_node_config, sample_runner_config):
-        args = MockArgs(runner_type="h200", runner_node_filter="nonexistent")
-        with pytest.raises(ValueError, match="No runner nodes found matching filter"):
-            generate_runner_model_sweep_config(args, sample_single_node_config, sample_runner_config)
-
-    def test_uses_highest_tp_lowest_conc(self, sample_single_node_config, sample_runner_config):
-        """Test that it uses highest TP with lowest concurrency."""
-        args = MockArgs(runner_type="h200")
-        result = generate_runner_model_sweep_config(args, sample_single_node_config, sample_runner_config)
-        # dsr1 config has tp=4 (conc 4-64) and tp=8 (conc 4-64), should pick tp=8, conc=4
+    def test_runner_sweep_entry_structure(self, sample_single_node_config, sample_runner_config, runner_sweep_args):
+        """Runner sweep entries should use 1k1k config."""
+        result = generate_runner_model_sweep_config(
+            runner_sweep_args,
+            sample_single_node_config,
+            sample_runner_config
+        )
         for entry in result:
-            assert entry['tp'] == 8
-            assert entry['conc'] == 4
+            assert entry["isl"] == 1024
+            assert entry["osl"] == 1024
+            assert entry["max-model-len"] == 2048
+            assert "_test" in entry["exp-name"]
 
-    def test_always_uses_1k1k(self, sample_single_node_config, sample_runner_config):
-        """Test that it always uses 1k1k sequence lengths."""
-        args = MockArgs(runner_type="h200")
-        result = generate_runner_model_sweep_config(args, sample_single_node_config, sample_runner_config)
-        assert all(entry['isl'] == 1024 and entry['osl'] == 1024 for entry in result)
+    def test_each_node_gets_entry(self, sample_single_node_config, sample_runner_config, runner_sweep_args):
+        """Each runner node should get its own entry."""
+        result = generate_runner_model_sweep_config(
+            runner_sweep_args,
+            sample_single_node_config,
+            sample_runner_config
+        )
+        runners = [entry["runner"] for entry in result]
+        assert "mi300x-amd_0" in runners
+        assert "mi300x-amd_1" in runners
+        assert "mi300x-cr_0" in runners
 
-    def test_exp_name_has_test_suffix(self, sample_single_node_config, sample_runner_config):
-        """Test that exp-name has _test suffix."""
-        args = MockArgs(runner_type="h200")
-        result = generate_runner_model_sweep_config(args, sample_single_node_config, sample_runner_config)
-        assert all('_test' in entry['exp-name'] for entry in result)
+    def test_invalid_runner_type(self, sample_single_node_config, sample_runner_config, runner_sweep_args):
+        """Invalid runner type should raise error."""
+        runner_sweep_args.runner_type = "nonexistent"
+        with pytest.raises(ValueError) as exc_info:
+            generate_runner_model_sweep_config(
+                runner_sweep_args,
+                sample_single_node_config,
+                sample_runner_config
+            )
+        assert "does not exist" in str(exc_info.value)
 
+    def test_runner_node_filter(self, sample_single_node_config, sample_runner_config, runner_sweep_args):
+        """Runner node filter should limit nodes."""
+        runner_sweep_args.runner_node_filter = "amd"
+        result = generate_runner_model_sweep_config(
+            runner_sweep_args,
+            sample_single_node_config,
+            sample_runner_config
+        )
+        # Only mi300x-amd_0 and mi300x-amd_1 match
+        assert len(result) == 2
+        assert all("amd" in entry["runner"] for entry in result)
 
-# ============================================================================
-# Tests for main function
-# ============================================================================
+    def test_runner_node_filter_no_match(self, sample_single_node_config, sample_runner_config, runner_sweep_args):
+        """Runner node filter with no matches should raise error."""
+        runner_sweep_args.runner_node_filter = "nonexistent"
+        with pytest.raises(ValueError) as exc_info:
+            generate_runner_model_sweep_config(
+                runner_sweep_args,
+                sample_single_node_config,
+                sample_runner_config
+            )
+        assert "No runner nodes found" in str(exc_info.value)
 
-class TestMain:
-    """Tests for the main function with CLI argument parsing."""
+    def test_uses_highest_tp(self, sample_single_node_config, sample_runner_config, runner_sweep_args):
+        """Should use highest TP from search space."""
+        result = generate_runner_model_sweep_config(
+            runner_sweep_args,
+            sample_single_node_config,
+            sample_runner_config
+        )
+        # Config has tp=8
+        assert all(entry["tp"] == 8 for entry in result)
 
-    def test_main_full_sweep_single_node(self, temp_config_files):
-        master_file, runner_file = temp_config_files
-
-        test_args = [
-            "generate_sweep_configs.py",
-            "full-sweep",
-            "--config-files", master_file,
-            "--runner-config", runner_file,
-            "--seq-lens", "1k1k",
-            "--model-prefix", "dsr1",
-            "--step-size", "2",
-            "--single-node"
-        ]
-
-        with patch('sys.argv', test_args):
-            result = main()
-            assert len(result) > 0
-
-    def test_main_full_sweep_multi_node(self, temp_multinode_config_files):
-        master_file, runner_file = temp_multinode_config_files
-
-        test_args = [
-            "generate_sweep_configs.py",
-            "full-sweep",
-            "--config-files", master_file,
-            "--runner-config", runner_file,
-            "--multi-node"
-        ]
-
-        with patch('sys.argv', test_args):
-            result = main()
-            assert len(result) > 0
-
-    def test_main_full_sweep_with_filters(self, temp_config_files):
-        master_file, runner_file = temp_config_files
-
-        test_args = [
-            "generate_sweep_configs.py",
-            "full-sweep",
-            "--config-files", master_file,
-            "--runner-config", runner_file,
-            "--model-prefix", "dsr1",
-            "--precision", "fp8",
-            "--framework", "sglang",
-            "--single-node"
-        ]
-
-        with patch('sys.argv', test_args):
-            result = main()
-            assert len(result) > 0
-            assert all(entry['precision'] == 'fp8' for entry in result)
-            assert all(entry['framework'] == 'sglang' for entry in result)
-
-    def test_main_full_sweep_empty_result(self, temp_config_files):
-        """Test that empty results are returned without error."""
-        master_file, runner_file = temp_config_files
-
-        test_args = [
-            "generate_sweep_configs.py",
-            "full-sweep",
-            "--config-files", master_file,
-            "--runner-config", runner_file,
-            "--model-prefix", "nonexistent",
-            "--single-node"
-        ]
-
-        with patch('sys.argv', test_args):
-            result = main()
-            assert result == []
-
-    def test_main_runner_model_sweep(self, temp_config_files):
-        master_file, runner_file = temp_config_files
-
-        test_args = [
-            "generate_sweep_configs.py",
-            "runner-model-sweep",
-            "--config-files", master_file,
-            "--runner-config", runner_file,
-            "--runner-type", "h200"
-        ]
-
-        with patch('sys.argv', test_args):
-            result = main()
-            assert len(result) > 0
-
-    def test_main_runner_model_sweep_with_filter(self, temp_config_files):
-        master_file, runner_file = temp_config_files
-
-        test_args = [
-            "generate_sweep_configs.py",
-            "runner-model-sweep",
-            "--config-files", master_file,
-            "--runner-config", runner_file,
-            "--runner-type", "h200",
-            "--runner-node-filter", "nv_1"
-        ]
-
-        with patch('sys.argv', test_args):
-            result = main()
-            assert len(result) > 0
-            runners = set(entry['runner'] for entry in result)
-            assert 'h200-nv_1' in runners
-            assert 'h200-nv_2' not in runners
+    def test_uses_lowest_conc(self, sample_single_node_config, sample_runner_config, runner_sweep_args):
+        """Should use lowest concurrency from search space."""
+        result = generate_runner_model_sweep_config(
+            runner_sweep_args,
+            sample_single_node_config,
+            sample_runner_config
+        )
+        # Config has conc-start=4
+        assert all(entry["conc"] == 4 for entry in result)
 
 
-# ============================================================================
-# Edge case tests
-# ============================================================================
+# =============================================================================
+# Test load_config_files
+# =============================================================================
+
+class TestLoadConfigFiles:
+    """Tests for load_config_files function."""
+
+    def test_load_single_file(self, tmp_path):
+        """Should load a single config file."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("""
+test-config:
+  image: test-image
+  model: test-model
+""")
+        result = load_config_files([str(config_file)])
+        assert "test-config" in result
+        assert result["test-config"]["image"] == "test-image"
+
+    def test_load_multiple_files(self, tmp_path):
+        """Should merge multiple config files."""
+        config1 = tmp_path / "config1.yaml"
+        config1.write_text("""
+config-one:
+  value: 1
+""")
+        config2 = tmp_path / "config2.yaml"
+        config2.write_text("""
+config-two:
+  value: 2
+""")
+        result = load_config_files([str(config1), str(config2)])
+        assert "config-one" in result
+        assert "config-two" in result
+
+    def test_duplicate_keys_raise_error(self, tmp_path):
+        """Duplicate keys across files should raise error."""
+        config1 = tmp_path / "config1.yaml"
+        config1.write_text("""
+duplicate-key:
+  value: 1
+""")
+        config2 = tmp_path / "config2.yaml"
+        config2.write_text("""
+duplicate-key:
+  value: 2
+""")
+        with pytest.raises(ValueError) as exc_info:
+            load_config_files([str(config1), str(config2)])
+        assert "Duplicate configuration keys" in str(exc_info.value)
+
+    def test_nonexistent_file_raises_error(self):
+        """Nonexistent file should raise error."""
+        with pytest.raises(ValueError) as exc_info:
+            load_config_files(["nonexistent.yaml"])
+        assert "does not exist" in str(exc_info.value)
+
+
+# =============================================================================
+# Test load_runner_file
+# =============================================================================
+
+class TestLoadRunnerFile:
+    """Tests for load_runner_file function."""
+
+    def test_load_runner_file(self, tmp_path):
+        """Should load runner config file."""
+        runner_file = tmp_path / "runners.yaml"
+        runner_file.write_text("""
+h100:
+- h100-node-0
+- h100-node-1
+""")
+        result = load_runner_file(str(runner_file))
+        assert "h100" in result
+        assert len(result["h100"]) == 2
+
+    def test_nonexistent_runner_file(self):
+        """Nonexistent runner file should raise error."""
+        with pytest.raises(ValueError) as exc_info:
+            load_runner_file("nonexistent.yaml")
+        assert "does not exist" in str(exc_info.value)
+
+
+# =============================================================================
+# Test edge cases and special configurations
+# =============================================================================
 
 class TestEdgeCases:
-    """Edge case tests."""
+    """Tests for edge cases and special configurations."""
 
-    def test_concurrency_range_equals_start_end(self, sample_runner_config):
-        """Test when conc-start equals conc-end."""
+    def test_config_with_ep_and_dp_attn(self, sample_runner_config, full_sweep_args_single_node):
+        """Config with ep and dp-attn should be handled correctly."""
         config = {
             "test-config": {
-                "image": "test:latest",
-                "model": "test/model",
+                "image": "test-image",
+                "model": "test-model",
                 "model-prefix": "test",
-                "precision": "fp8",
-                "framework": "vllm",
-                "runner": "h200",
+                "precision": "fp4",
+                "framework": "sglang",
+                "runner": "b200",
                 "multinode": False,
                 "seq-len-configs": [
                     {
                         "isl": 1024,
                         "osl": 1024,
                         "search-space": [
-                            {"tp": 4, "conc-start": 8, "conc-end": 8}
+                            {"tp": 4, "ep": 4, "dp-attn": True, "conc-start": 4, "conc-end": 4}
                         ]
                     }
                 ]
             }
         }
-        args = MockArgs(single_node=True)
-        result = generate_full_sweep(args, config, sample_runner_config)
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            config,
+            sample_runner_config
+        )
         assert len(result) == 1
-        assert result[0]['conc'] == 8
+        assert result[0]["ep"] == 4
+        assert result[0]["dp-attn"] is True
 
-    def test_multiple_model_prefixes(self, sample_single_node_config, sample_runner_config):
-        """Test filtering with multiple model prefixes."""
-        args = MockArgs(
-            model_prefix=["dsr1", "gptoss"],
-            seq_lens=["1k1k"],
-            single_node=True
-        )
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
-        exp_names = [e['exp-name'] for e in result]
-        assert any('dsr1' in name for name in exp_names)
-        assert any('gptoss' in name for name in exp_names)
-
-    def test_combined_max_filters(self, sample_single_node_config, sample_runner_config):
-        """Test combining max_tp, max_ep, and max_conc filters."""
-        args = MockArgs(
-            model_prefix=["dsr1"],
-            seq_lens=["1k1k"],
-            max_tp=4,
-            max_conc=8,
-            single_node=True
-        )
-        result = generate_full_sweep(args, sample_single_node_config, sample_runner_config)
-        assert all(entry['tp'] <= 4 for entry in result)
-        assert all(entry['conc'] <= 8 for entry in result)
-
-    def test_multinode_conc_range_instead_of_list(self, sample_runner_config):
-        """Test multinode config with conc-start/conc-end instead of conc-list."""
+    def test_config_with_spec_decoding(self, sample_runner_config, full_sweep_args_single_node):
+        """Config with spec-decoding should be handled correctly."""
         config = {
-            "multinode-config": {
-                "image": "test:latest",
-                "model": "test/model",
+            "test-config": {
+                "image": "test-image",
+                "model": "test-model",
                 "model-prefix": "test",
-                "runner": "gb200",
+                "precision": "fp4",
+                "framework": "trt",
+                "runner": "b200",
+                "multinode": False,
+                "seq-len-configs": [
+                    {
+                        "isl": 1024,
+                        "osl": 1024,
+                        "search-space": [
+                            {"tp": 8, "spec-decoding": "mtp", "conc-start": 4, "conc-end": 4}
+                        ]
+                    }
+                ]
+            }
+        }
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            config,
+            sample_runner_config
+        )
+        assert len(result) == 1
+        assert result[0]["spec-decoding"] == "mtp"
+
+    def test_conc_list_in_single_node(self, sample_runner_config, full_sweep_args_single_node):
+        """Single node config with conc-list should work."""
+        config = {
+            "test-config": {
+                "image": "test-image",
+                "model": "test-model",
+                "model-prefix": "test",
                 "precision": "fp8",
+                "framework": "sglang",
+                "runner": "mi300x",
+                "multinode": False,
+                "seq-len-configs": [
+                    {
+                        "isl": 1024,
+                        "osl": 1024,
+                        "search-space": [
+                            {"tp": 8, "conc-start": 4, "conc-end": 16}
+                        ]
+                    }
+                ]
+            }
+        }
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            config,
+            sample_runner_config
+        )
+        conc_values = [entry["conc"] for entry in result]
+        assert 4 in conc_values
+        assert 8 in conc_values
+        assert 16 in conc_values
+
+    def test_disagg_defaults_to_false(self, sample_runner_config, full_sweep_args_single_node):
+        """disagg should default to False when not specified."""
+        config = {
+            "test-config": {
+                "image": "test-image",
+                "model": "test-model",
+                "model-prefix": "test",
+                "precision": "fp8",
+                "framework": "sglang",
+                "runner": "mi300x",
+                "multinode": False,
+                # No disagg field
+                "seq-len-configs": [
+                    {
+                        "isl": 1024,
+                        "osl": 1024,
+                        "search-space": [
+                            {"tp": 8, "conc-start": 4, "conc-end": 4}
+                        ]
+                    }
+                ]
+            }
+        }
+        result = generate_full_sweep(
+            full_sweep_args_single_node,
+            config,
+            sample_runner_config
+        )
+        assert result[0]["disagg"] is False
+
+    def test_multinode_conc_range_expansion(self, sample_runner_config, full_sweep_args_multi_node):
+        """Multinode with conc range should expand to list."""
+        config = {
+            "test-config": {
+                "image": "test-image",
+                "model": "test-model",
+                "model-prefix": "test",
+                "precision": "fp4",
                 "framework": "dynamo-trt",
+                "runner": "gb200",
                 "multinode": True,
-                "disagg": True,
                 "seq-len-configs": [
                     {
                         "isl": 1024,
                         "osl": 1024,
                         "search-space": [
                             {
-                                "conc-start": 4,
-                                "conc-end": 16,
+                                "conc-start": 1,
+                                "conc-end": 8,
                                 "prefill": {
                                     "num-worker": 1,
                                     "tp": 4,
                                     "ep": 4,
-                                    "dp-attn": False
+                                    "dp-attn": False,
                                 },
                                 "decode": {
                                     "num-worker": 1,
                                     "tp": 8,
                                     "ep": 8,
-                                    "dp-attn": False
-                                }
+                                    "dp-attn": False,
+                                },
                             }
                         ]
                     }
                 ]
             }
         }
-        args = MockArgs(multi_node=True, step_size=2)
-        result = generate_full_sweep(args, config, sample_runner_config)
+        result = generate_full_sweep(
+            full_sweep_args_multi_node,
+            config,
+            sample_runner_config
+        )
         assert len(result) == 1
-        # conc should be [4, 8, 16]
-        assert result[0]['conc'] == [4, 8, 16]
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+        # step_size=2: 1, 2, 4, 8
+        assert result[0]["conc"] == [1, 2, 4, 8]

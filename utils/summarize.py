@@ -13,8 +13,10 @@ for result_path in results_dir.rglob(f'*.json'):
 single_node_results = [r for r in results if not r['is_multinode']]
 multinode_results = [r for r in results if r['is_multinode']]
 
+# Single-node and multi-node results have different field and therefore need to be printed separately
 if single_node_results:
-    single_node_results.sort(key=lambda r: (r['model'], r['hw'], r['framework'], r['precision'], r['isl'], r['osl'], r['tp'], r['ep'], r['conc']))
+    single_node_results.sort(key=lambda r: (
+        r['model'], r['hw'], r['framework'], r['precision'], r['isl'], r['osl'], r['tp'], r['ep'], r['conc']))
 
     print("## Single-Node Results\n")
     single_node_header = '''\
@@ -43,11 +45,12 @@ if single_node_results:
             f"| {result['output_tput_per_gpu']:.4f} "
             f"| {result['input_tput_per_gpu']:.4f} |"
         )
-        
+
     print("\n")
 
 if multinode_results:
-    multinode_results.sort(key=lambda r: (r['model'], r['hw'], r['framework'], r['precision'], r['isl'], r['osl'], r['prefill_tp'], r['prefill_ep'], r['decode_tp'], r['decode_ep'], r['conc']))
+    multinode_results.sort(key=lambda r: (r['model'], r['hw'], r['framework'], r['precision'], r['isl'],
+                           r['osl'], r['prefill_tp'], r['prefill_ep'], r['decode_tp'], r['decode_ep'], r['conc']))
 
     print("## Multi-Node Results\n")
     multinode_header = '''\

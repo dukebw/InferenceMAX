@@ -90,6 +90,8 @@ jobs:
             ep: ${{ matrix.config.ep }}
             dp-attn: ${{ matrix.config.dp-attn }}
             conc: ${{ matrix.config.conc }}
+            spec-decoding: ${{ matrix.config.spec-decoding }}
+            disagg: ${{ matrix.config.disagg }}
 
     collect-results:
         needs: [test-sweep-multi-node, test-sweep-single-node]

@@ -4,6 +4,11 @@ from enum import Enum
 
 import pprint
 
+"""
+    The below class defines the field names expected to be present in the JSON entries
+    for both single-node and multi-node configurations.
+"""
+
 
 class Fields(Enum):
     # Field name constants
@@ -46,6 +51,16 @@ class Fields(Enum):
     DISAGG = 'disagg'
 
 
+"""
+    Below is the validation logic for the OUTPUT of utils/matrix-logic/generate_sweep_configs.py, i.e., 
+    the input to the actual workflow files. The validation enforces a strict set of rules on the structure
+    of the generated matrix entries to ensure correctness before proceeding with benchmarking. This ensures
+    that no validation has to happen in the workflow itself, i.e., at runtime, it is assumed that all inputs
+    are valid. Threfore, there should not be any default values set in these Pydantic models. Any missing value
+    should raise a validation error.
+"""
+
+
 class SingleNodeMatrixEntry(BaseModel):
     """Pydantic model for validating single node matrix entry structure.
     This validates the input that should be expected to .github/workflows/benchmark-tmpl.yml"""
@@ -79,7 +94,7 @@ class WorkerConfig(BaseModel):
     ep: int
     dp_attn: bool = Field(alias=Fields.DP_ATTN.value)
     additional_settings: Optional[List[str]] = Field(
-        default=None, alias=Fields.ADDITIONAL_SETTINGS.value)
+        default=[], alias=Fields.ADDITIONAL_SETTINGS.value)
 
 
 class MultiNodeMatrixEntry(BaseModel):
@@ -105,7 +120,7 @@ class MultiNodeMatrixEntry(BaseModel):
     disagg: bool
 
 
-def validate_matrix_output(entry: dict, is_multinode: bool) -> dict:
+def validate_matrix_entry(entry: dict, is_multinode: bool) -> dict:
     """Validate that matrix_values entries match the expected structure.
 
     Raises ValueError if any entry fails validation.
@@ -121,7 +136,13 @@ def validate_matrix_output(entry: dict, is_multinode: bool) -> dict:
             f"The following parsed matrix entry failed validation:\n{pprint.pformat(entry)}\n{e}")
     return entry
 
-# Input Master Config Validation
+
+"""
+    Below is the validation logic for the INPUT to utils/matrix-logic/generate_sweep_configs.py, i.e., 
+    the master configuration files found in .github/configs. The validation enforces a strict set of 
+    rules on the structure of the master configuration files to ensure correctness before proceeding 
+    with matrix generation.
+"""
 
 
 def _validate_conc_fields(self):

@@ -33,3 +33,4 @@ jobs:
         run: |
           cd utils/matrix-logic
           pytest test_generate_sweep_configs.py -v
+          pytest test_validation.py -v

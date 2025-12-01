@@ -2,7 +2,7 @@ import json
 import yaml
 import argparse
 
-from validation import validate_master_config, validate_matrix_output, validate_runner_config, Fields
+from validation import validate_master_config, validate_matrix_entry, validate_runner_config, Fields
 
 seq_len_stoi = {
     "1k1k": (1024, 1024),
@@ -31,7 +31,7 @@ def generate_full_sweep(args, all_config_data, runner_data):
 
     All filters are optional - can generate sweeps for all configs or filter by specific criteria.
 
-    Assumes all_config_data has been validated by validate_config_structure().
+    Assumes all_config_data has been validated by validate_master_config().
     """
     # Validate runner types if specified
     if args.runner_type:
@@ -49,6 +49,8 @@ def generate_full_sweep(args, all_config_data, runner_data):
     if args.seq_lens:
         seq_lens_filter = {seq_len_stoi[sl] for sl in args.seq_lens}
 
+    # Iterate through all configurations and apply filters as specified (this is just "selecting" 
+    # configs from all of the master configs subject to some pattern matching)
     for key, val in all_config_data.items():
         # Filter by model prefix if specified
         if args.model_prefix:
@@ -147,7 +149,7 @@ def generate_full_sweep(args, all_config_data, runner_data):
                         Fields.DISAGG.value: disagg,
                     }
 
-                    validate_matrix_output(entry, is_multinode)
+                    validate_matrix_entry(entry, is_multinode)
                     matrix_values.append(entry)
                 elif args.single_node:
                     # Single-node configuration
@@ -198,7 +200,7 @@ def generate_full_sweep(args, all_config_data, runner_data):
                         if dp_attn is not None:
                             entry[Fields.DP_ATTN.value] = dp_attn
 
-                        validate_matrix_output(entry, is_multinode)
+                        validate_matrix_entry(entry, is_multinode)
                         matrix_values.append(entry)
 
                         if conc == conc_end:
