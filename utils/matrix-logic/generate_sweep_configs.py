@@ -236,6 +236,7 @@ def generate_runner_model_sweep_config(args, all_config_data, runner_data):
     """Generate runner-model sweep configurations.
 
     Assumes all_config_data has been validated by validate_config_structure().
+    Supports both single-node and multinode configurations.
     """
     runner_nodes = runner_data.get(args.runner_type)
 
@@ -257,6 +258,8 @@ def generate_runner_model_sweep_config(args, all_config_data, runner_data):
         if val[Fields.RUNNER.value] != args.runner_type:
             continue
 
+        is_multinode = val.get(Fields.MULTINODE.value, False)
+
         # Get model code for exp_name
         model_code = val[Fields.MODEL_PREFIX.value]
         # Get disagg value, defaulting to False if not specified
@@ -269,44 +272,86 @@ def generate_runner_model_sweep_config(args, all_config_data, runner_data):
                 target_config = config
                 break
 
-        highest_tp_bmk = max(
-            target_config[Fields.SEARCH_SPACE.value], key=lambda x: x[Fields.TP.value])
-        # Since we are just testing, pick the highest TP for this config and just test
-        # on that TP with the lowest concurrency available
-        highest_tp = highest_tp_bmk[Fields.TP.value]
-        lowest_conc = highest_tp_bmk[Fields.CONC_START.value]
+        if target_config is None:
+            continue
 
-        ep = highest_tp_bmk.get(Fields.EP.value)
-        dp_attn = highest_tp_bmk.get(Fields.DP_ATTN.value)
+        if is_multinode:
+            # For multinode, find the search space entry with the lowest concurrency
+            def get_lowest_conc(search_space_entry):
+                conc_list = search_space_entry.get(Fields.CONC_LIST.value, [])
+                return min(conc_list) if conc_list else float('inf')
 
-        for node in runner_nodes:
-            entry = {
-                Fields.IMAGE.value: val[Fields.IMAGE.value],
-                Fields.MODEL.value: val[Fields.MODEL.value],
-                Fields.PRECISION.value: val[Fields.PRECISION.value],
-                Fields.FRAMEWORK.value: val[Fields.FRAMEWORK.value],
-                # Add one entry for each node under specified runner type
-                Fields.RUNNER.value: node,
-                # Again, just use 1k1k since this is just meant to smoke test all runners
-                Fields.ISL.value: 1024,
-                Fields.OSL.value: 1024,
-                Fields.TP.value: highest_tp,
-                Fields.EP.value: 1,  # Default,
-                Fields.DP_ATTN.value: False,  # Default
-                Fields.SPEC_DECODING.value: "none",  # Default
-                Fields.CONC.value: lowest_conc,
-                Fields.MAX_MODEL_LEN.value: 2048,
-                Fields.EXP_NAME.value: f"{model_code}_test",
-                Fields.DISAGG.value: disagg,
-            }
+            lowest_conc_entry = min(
+                target_config[Fields.SEARCH_SPACE.value], key=get_lowest_conc)
 
-            # Add optional fields if they exist
-            if ep is not None:
-                entry[Fields.EP.value] = ep
-            if dp_attn is not None:
-                entry[Fields.DP_ATTN.value] = dp_attn
+            conc_list = lowest_conc_entry.get(Fields.CONC_LIST.value, [])
+            lowest_conc = min(conc_list) if conc_list else 1
 
-            matrix_values.append(entry)
+            spec_decoding = lowest_conc_entry.get(
+                Fields.SPEC_DECODING.value, "none")
+            prefill_config = lowest_conc_entry[Fields.PREFILL.value]
+            decode_config = lowest_conc_entry[Fields.DECODE.value]
+
+            for node in runner_nodes:
+                entry = {
+                    Fields.IMAGE.value: val[Fields.IMAGE.value],
+                    Fields.MODEL.value: val[Fields.MODEL.value],
+                    Fields.PRECISION.value: val[Fields.PRECISION.value],
+                    Fields.FRAMEWORK.value: val[Fields.FRAMEWORK.value],
+                    Fields.RUNNER.value: node,
+                    Fields.ISL.value: 1024,
+                    Fields.OSL.value: 1024,
+                    Fields.SPEC_DECODING.value: spec_decoding,
+                    Fields.PREFILL.value: {
+                        Fields.NUM_WORKER.value: prefill_config[Fields.NUM_WORKER.value],
+                        Fields.TP.value: prefill_config[Fields.TP.value],
+                        Fields.EP.value: prefill_config[Fields.EP.value],
+                        Fields.DP_ATTN.value: prefill_config[Fields.DP_ATTN.value],
+                        Fields.ADDITIONAL_SETTINGS.value: prefill_config.get(Fields.ADDITIONAL_SETTINGS.value, []),
+                    },
+                    Fields.DECODE.value: {
+                        Fields.NUM_WORKER.value: decode_config[Fields.NUM_WORKER.value],
+                        Fields.TP.value: decode_config[Fields.TP.value],
+                        Fields.EP.value: decode_config[Fields.EP.value],
+                        Fields.DP_ATTN.value: decode_config[Fields.DP_ATTN.value],
+                        Fields.ADDITIONAL_SETTINGS.value: decode_config.get(Fields.ADDITIONAL_SETTINGS.value, []),
+                    },
+                    Fields.CONC.value: [lowest_conc],
+                    Fields.MAX_MODEL_LEN.value: 2048,
+                    Fields.EXP_NAME.value: f"{model_code}_test",
+                    Fields.DISAGG.value: disagg,
+                }
+                matrix_values.append(validate_matrix_entry(entry, is_multinode=True))
+        else:
+            # Single-node: pick highest TP config with lowest concurrency
+            highest_tp_bmk = max(
+                target_config[Fields.SEARCH_SPACE.value], key=lambda x: x[Fields.TP.value])
+            highest_tp = highest_tp_bmk[Fields.TP.value]
+            lowest_conc = highest_tp_bmk[Fields.CONC_START.value]
+
+            ep = highest_tp_bmk.get(Fields.EP.value)
+            dp_attn = highest_tp_bmk.get(Fields.DP_ATTN.value)
+            spec_decoding = highest_tp_bmk.get(Fields.SPEC_DECODING.value, "none")
+
+            for node in runner_nodes:
+                entry = {
+                    Fields.IMAGE.value: val[Fields.IMAGE.value],
+                    Fields.MODEL.value: val[Fields.MODEL.value],
+                    Fields.PRECISION.value: val[Fields.PRECISION.value],
+                    Fields.FRAMEWORK.value: val[Fields.FRAMEWORK.value],
+                    Fields.RUNNER.value: node,
+                    Fields.ISL.value: 1024,
+                    Fields.OSL.value: 1024,
+                    Fields.TP.value: highest_tp,
+                    Fields.EP.value: ep if ep is not None else 1,
+                    Fields.DP_ATTN.value: dp_attn if dp_attn is not None else False,
+                    Fields.SPEC_DECODING.value: spec_decoding,
+                    Fields.CONC.value: lowest_conc,
+                    Fields.MAX_MODEL_LEN.value: 2048,
+                    Fields.EXP_NAME.value: f"{model_code}_test",
+                    Fields.DISAGG.value: disagg,
+                }
+                matrix_values.append(validate_matrix_entry(entry, is_multinode=False))
 
     return matrix_values
 
