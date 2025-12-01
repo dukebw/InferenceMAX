@@ -6,16 +6,6 @@ PORT=8888
 server_name="bmk-server"
 
 set -x
-## Propagate GitHub summary file into the container when available
-GH_SUM_ENV=""
-GH_SUM_MOUNT=""
-if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-  GH_SUM_ENV="-e GITHUB_STEP_SUMMARY=${GITHUB_STEP_SUMMARY}"
-  GH_SUM_DIR="$(dirname "${GITHUB_STEP_SUMMARY}")"
-  if [ -d "${GH_SUM_DIR}" ]; then
-    GH_SUM_MOUNT="-v ${GH_SUM_DIR}:${GH_SUM_DIR}"
-  fi
-fi
 docker run --rm --network=host --name=$server_name \
 --runtime=nvidia --gpus=all --ipc=host --privileged --shm-size=16g --ulimit memlock=-1 --ulimit stack=67108864 \
 -v $HF_HUB_CACHE_MOUNT:$HF_HUB_CACHE \

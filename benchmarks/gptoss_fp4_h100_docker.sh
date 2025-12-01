@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
 
 # === Required Env Vars ===
-# HF_TOKEN
-# HF_HUB_CACHE
 # MODEL
-# ISL
-# OSL
-# MAX_MODEL_LEN
-# RANDOM_RANGE_RATIO
+# PORT
 # TP
 # CONC
 # ISL
 # OSL
+# RANDOM_RANGE_RATIO
+# RESULT_FILENAME
+
 
 
 # Create a basic vLLM config

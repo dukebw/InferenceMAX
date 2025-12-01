@@ -30,16 +30,6 @@ else
 fi
 
 set -x
-# Propagate GitHub summary file into the container when available
-GH_SUM_ENV=""
-GH_SUM_MOUNT=""
-if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-  GH_SUM_ENV="-e GITHUB_STEP_SUMMARY=${GITHUB_STEP_SUMMARY}"
-  GH_SUM_DIR="$(dirname "${GITHUB_STEP_SUMMARY}")"
-  if [ -d "${GH_SUM_DIR}" ]; then
-    GH_SUM_MOUNT="-v ${GH_SUM_DIR}:${GH_SUM_DIR}"
-  fi
-fi
 docker run --rm --ipc=host --shm-size=16g --network=host --name=$server_name \
 --privileged --cap-add=CAP_SYS_ADMIN --device=/dev/kfd --device=/dev/dri --device=/dev/mem \
 --cap-add=SYS_PTRACE --security-opt seccomp=unconfined \
