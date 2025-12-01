@@ -1,8 +1,6 @@
 """Comprehensive tests for generate_sweep_configs.py"""
 import pytest
-import json
 import argparse
-from unittest.mock import patch, mock_open
 from generate_sweep_configs import (
     seq_len_stoi,
     seq_len_itos,
