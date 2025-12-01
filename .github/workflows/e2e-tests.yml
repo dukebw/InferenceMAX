@@ -61,7 +61,7 @@ jobs:
 
     test-sweep-multi-node:
         needs: get-jobs
-        if: ${{ needs.get-jobs.outputs.search-space-config != '[]' && !fromJson(needs.get-jobs.outputs.search-space-config)[0].prefill}}
+        if: ${{ needs.get-jobs.outputs.search-space-config != '[]' && fromJson(needs.get-jobs.outputs.search-space-config)[0].prefill != null }}
         uses: ./.github/workflows/benchmark-multinode-tmpl.yml
         name: ${{ inputs.generate-cli-command }} multi-node /
         strategy:
@@ -97,7 +97,7 @@ jobs:
 
     test-sweep-single-node:
         needs: get-jobs
-        if: ${{ needs.get-jobs.outputs.search-space-config != '[]' && !fromJson(needs.get-jobs.outputs.search-space-config)[0].prefill }}
+        if: ${{ needs.get-jobs.outputs.search-space-config != '[]' && fromJson(needs.get-jobs.outputs.search-space-config)[0].prefill == null }}
         uses: ./.github/workflows/benchmark-tmpl.yml
         name: ${{ inputs.generate-cli-command }} single-node /
         strategy:
