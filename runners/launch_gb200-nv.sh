@@ -24,6 +24,14 @@ if [[ $FRAMEWORK == "dynamo-sglang" ]]; then
     fi
     export MODEL_PATH="/mnt/lustre01/models/deepseek-r1-0528"
     export CONFIG_DIR="/mnt/lustre01/artifacts/sglang-configs/1k1k"
+
+    # FIXME: Another workaround for all the different branching
+    # THIS NEEDS TO BE STANDARDIZED ASAP
+    if [ "$ISL" = "1024" ] && [ "$OSL" = "1024" ]; then
+        export SGL_SLURM_JOBS_PATH="dynamo/examples/backends/sglang/slurm_jobs"
+    else
+        export SGL_SLURM_JOBS_PATH="dynamo/components/backends/sglang/slurm_jobs"
+    fi
 else
     SQUASH_FILE="/mnt/lustre01/users/sa-shared/images/$(echo "$IMAGE" | sed 's/[\/:@#]/_/g').sqsh"
     srun --partition=$SLURM_PARTITION --exclusive --time=180 bash -c "enroot import -o $SQUASH_FILE docker://$IMAGE"
@@ -115,8 +123,8 @@ else # search for "FRAMEWORK_DIFF_IF_STATEMENT #3" for this if-statement
     # Find the latest log directory that contains the data
     cat > collect_latest_results.py <<'PY'
 import os, sys
-isl, osl, nexp = [int(x) for x in sys.argv[1:]]
-for path in sorted([f"logs/{name}/vllm_isl_{isl}_osl_{osl}" for name in os.listdir("logs/") if os.path.isdir(f"logs/{name}/vllm_isl_{isl}_osl_{osl}")], key=os.path.getmtime, reverse=True)[:nexp]:
+sgl_job_dir, isl, osl, nexp = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4])
+for path in sorted([f"{sgl_job_dir}/logs/{name}/vllm_isl_{isl}_osl_{osl}" for name in os.listdir(f"{sgl_job_dir}/logs/") if os.path.isdir(f"{sgl_job_dir}/logs/{name}/vllm_isl_{isl}_osl_{osl}")], key=os.path.getmtime, reverse=True)[:nexp]:
     print(path)
 PY
 
@@ -127,7 +135,7 @@ PY
         NUMBER_OF_EXPERIMENTS=1
     fi
 
-    LOGS_DIR=$(python3 collect_latest_results.py $ISL $OSL $NUMBER_OF_EXPERIMENTS)
+    LOGS_DIR=$(python3 collect_latest_results.py "$SGL_SLURM_JOBS_PATH" $ISL $OSL $NUMBER_OF_EXPERIMENTS)
     if [ -z "$LOGS_DIR" ]; then
         echo "No logs directory found for ISL=${ISL}, OSL=${OSL}"
         exit 1
