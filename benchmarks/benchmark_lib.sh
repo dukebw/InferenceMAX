@@ -242,7 +242,7 @@ PY
 run_lm_eval() {
     local port="${PORT:-8888}"
     local task="${EVAL_TASK:-gsm8k}"
-    local num_fewshot="${NUM_FEWSHOT:-5}"
+    local num_fewshot="${NUM_FEWSHOT:-2}"
     local results_dir="${EVAL_RESULT_DIR:-$(mktemp -d /tmp/eval_out-XXXXXX)}"
     local gen_max_tokens=4096
     local temperature=0
