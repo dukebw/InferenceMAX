@@ -39,10 +39,11 @@ fi
 
 kind=dynamo_disagg
 additional_slurm_args="--time=04:00:00"
+ntasks_per_node=4
 
 gen_nodes=$(((DECODE_TP + 3)/4 * DECODE_NUM_WORKERS))
 total_nodes=$((PREFILL_NUM_WORKERS + gen_nodes))
-total_tasks=$((total_nodes * NTASKS_PER_NODE))
+total_tasks=$((total_nodes * ntasks_per_node))
 
 decode_eplb_num_slots=0
 
