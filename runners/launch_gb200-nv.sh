@@ -127,16 +127,19 @@ if [[ $FRAMEWORK == "dynamo-trtllm" ]]; then
                     ./submit_disagg.sh mtp=off tp 1 1 4 128 20000 "0.9" 0 0 "4 8 16 32 64 128"
                     ./submit_disagg.sh mtp=off tp 1 1 8 16 20000 "0.9" 0 0 "1 2 4"
                     
+                    
             elif [ "$isl" = "8192" ] && [ "$osl" = "1024" ]; then
                 
                     echo "Running 8k/1k MTP=OFF configurations for GPT-OSS"
                     
-                    ./submit_disagg.sh mtp=off tp 1 1 1 1024 20000 "0.9" 0 0 "128 256 384 512 1024"
-                    ./submit_disagg.sh mtp=off tp 1 1 2 256 20000 "0.9" 0 0 "64 128 256"
-                    ./submit_disagg.sh mtp=off dep 1 1 2 256 20000 "0.9" 0 0 "64 128 256"
-                    ./submit_disagg.sh mtp=off tep 1 1 2 1024 20000 "0.9" 0 0 "64 256"
-                    ./submit_disagg.sh mtp=off tp 1 1 4 2048 20000 "0.9" 0 0 "8 16 32 64 128 256"
-                    ./submit_disagg.sh mtp=off tp 1 1 8 32 20000 "0.9" 0 0 "1 2 4 8 16"
+                    # ./submit_disagg.sh mtp=off tp 1 1 1 1024 20000 "0.9" 0 0 "128 256 384 512 1024"
+                    # ./submit_disagg.sh mtp=off tp 1 1 2 256 20000 "0.9" 0 0 "64 128 256"
+                    # ./submit_disagg.sh mtp=off dep 1 1 2 256 20000 "0.9" 0 0 "64 128 256"
+                    # ./submit_disagg.sh mtp=off tep 1 1 2 1024 20000 "0.9" 0 0 "64 256"
+                    # ./submit_disagg.sh mtp=off tp 1 1 4 2048 20000 "0.9" 0 0 "8 16 32 64 128 256"
+                    # ./submit_disagg.sh mtp=off tp 1 1 8 32 20000 "0.9" 0 0 "1 2 4 8 16"
+                    ./submit_disagg.sh mtp=off tp 1 1 2 128 128 "0.9" 0 0 "64"
+                    ./submit_disagg.sh mtp=off tp 1 1 4 128 128 "0.9" 0 0 "64"
             else
                 echo "Unsupported ISL/OSL combination for GPT-OSS: $isl/$osl"
                 exit 1
