@@ -295,7 +295,7 @@ def main():
 
         row = {
             'model': m.get('model') or meta.get('model') or 'unknown',
-            'hw': meta.get('hw'),
+            'hw': (meta.get('hw') or 'unknown').upper(),
             'framework': (meta.get('framework') or 'unknown').lower(),
             'precision': (meta.get('precision') or 'unknown').lower(),
             'tp': int(meta.get('tp') or 1),
