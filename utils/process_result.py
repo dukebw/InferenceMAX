@@ -25,7 +25,7 @@ def get_required_env_vars(required_vars):
 # Base required env vars
 base_env = get_required_env_vars([
     'RUNNER_TYPE', 'FRAMEWORK', 'PRECISION', 'SPEC_DECODING',
-    'RESULT_FILENAME', 'ISL', 'OSL', 'DISAGG', 'MODEL_PREFIX'
+    'RESULT_FILENAME', 'ISL', 'OSL', 'DISAGG', 'MODEL_PREFIX', 'IMAGE'
 ])
 
 hw = base_env['RUNNER_TYPE']
@@ -37,6 +37,7 @@ disagg = base_env['DISAGG'].lower() == 'true'
 result_filename = base_env['RESULT_FILENAME']
 isl = base_env['ISL']
 osl = base_env['OSL']
+image = base_env['IMAGE']
 
 with open(f'{result_filename}.json') as f:
     bmk_result = json.load(f)
@@ -44,6 +45,7 @@ with open(f'{result_filename}.json') as f:
 data = {
     'hw': hw,
     'conc': int(bmk_result['max_concurrency']),
+    'image': image,
     'model': bmk_result['model_id'],
     'infmax_model_prefix': model_prefix,
     'framework': framework,
