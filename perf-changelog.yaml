@@ -1,0 +1,8 @@
+- config-keys:
+    - gptoss-fp4-mi300x-vllm
+  description: |
+    Updating vllm version for mi300x
+- config-keys:
+    - gptoss-fp4-mi300x-vllm
+  description: |
+    Updating vllm version for mi325x
