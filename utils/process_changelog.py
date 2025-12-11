@@ -122,7 +122,7 @@ def main():
             )
         except subprocess.CalledProcessError as e:
             print(e.stderr)
-            continue
+            raise
 
         all_results.extend(json.loads(result.stdout))
 
