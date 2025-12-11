@@ -56,11 +56,6 @@
     - Extend concurrency to 128 for gptoss b200 TRT configurations
     PR: https://github.com/InferenceMAX/InferenceMAX/pull/233
 - config-keys:
-    - "*gb200-dynamo-sglang"
-  description: |
-    - Introducing some improvements in GB200 SGLang DSR1 submission
-    PR: https://github.com/InferenceMAX/InferenceMAX/pull/257
-- config-keys:
     - dsr1-fp8-h200-trt
   description: |
     - Update TRT image from nvcr.io#nvidia/tensorrt-llm/release:1.2.0rc0.post1 to nvcr.io#nvidia/tensorrt-llm/release:1.2.0rc2
