@@ -56,7 +56,7 @@
     - Extend concurrency to 128 for gptoss b200 TRT configurations
     PR: https://github.com/InferenceMAX/InferenceMAX/pull/233
 - config-keys:
-    - "*gb200-sglang"
+    - "*gb200-dynamo-sglang"
   description: |
     - Introducing some improvements in GB200 SGLang DSR1 submission
     PR: https://github.com/InferenceMAX/InferenceMAX/pull/257
