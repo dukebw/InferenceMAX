@@ -213,7 +213,7 @@ run_benchmark_serving() {
     if ! command -v git &> /dev/null; then
         echo "git not found, installing..."
         if command -v apt-get &> /dev/null; then
-            apt-get update && apt-get install -y git
+            sudo apt-get update && sudo apt-get install -y git
         else
             echo "Error: Could not install git. Package manager not found."
             return 1
