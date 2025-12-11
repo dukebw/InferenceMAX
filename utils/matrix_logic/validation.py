@@ -384,7 +384,7 @@ def load_config_files(config_files: List[str], validate: bool = True) -> dict:
 
                 # Don't allow '*' wildcard in master config keys as we need to reserve these
                 # for expansion in process_changelog.py
-                for key in all_config_data.keys():
+                for key in config_data.keys():
                     if "*" in key:
                         raise ValueError(
                             f" Wildcard '*' is not allowed in master config keys: '{key}'")
