@@ -1,12 +1,4 @@
 - config-keys:
-    - gptoss-fp4-*-trt
-  description: |
-    - Upgrade GPT-OSS TRT images from 'release:1.1.0rc2.post2' to '1.2.0rc0.post1'
-    - Add NCCL_GRAPH_REGISTER=0 to benchmarks/gptoss_fp4_b200_trt_slurm.sh
-    - Change kv_cache_config.dtype from 'auto' to 'fp8' in benchmarks/gptoss_fp4_b200_trt_slurm.sh
-    - Remove MOE_BACKEND=CUTLASS, now just defaults to TRTLLM
-    PR: https://github.com/InferenceMAX/InferenceMAX/pull/110
-- config-keys:
     - gptoss-fp4-b200-vllm
     - gptoss-fp4-h100-vllm
     - gptoss-fp4-h200-vllm
@@ -15,11 +7,6 @@
     - Adds compilation-config: '{"cudagraph_mode":"PIECEWISE"} accordingly since vLLM 0.11.0
       requires now defaults to FULL_AND_PIECEWISE
     PR: https://github.com/InferenceMAX/InferenceMAX/pull/159
-- config-keys:
-    - dsr1*
-  description: |
-    - Fixes bug where 1k8k and 8k1k full sweeps had incorrect max-model-len for DeepSeek
-    PR: https://github.com/InferenceMAX/InferenceMAX/pull/163
 - config-keys:
     - dsr1-fp4-b200-sglang
     - dsr1-fp8-b200-sglang
