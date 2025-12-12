@@ -60,10 +60,10 @@ jobs:
         steps:
             - name: Test
               run: |
-                  echo ${{ needs.setup.outputs.search-space-config.multi_node['1k1k'] }}
-                  echo ${{ fromJson(needs.setup.outputs.search-space-config).multi_node['1k1k'] }}
-                  echo ${{ needs.setup.outputs.search-space-config.single_node['1k1k'] }}
-                  ${{ fromJson(needs.setup.outputs.search-space-config).single_node['1k1k'] }}
+                  echo "${{ needs.setup.outputs.search-space-config.multi_node['1k1k'] }}"
+                  echo "${{ fromJson(needs.setup.outputs.search-space-config).multi_node['1k1k'] }}"
+                  echo "${{ needs.setup.outputs.search-space-config.single_node['1k1k'] }}"
+                  echo "${{ fromJson(needs.setup.outputs.search-space-config).single_node['1k1k'] }}"
 
     sweep-multi-node-1k1k:
         needs: setup
