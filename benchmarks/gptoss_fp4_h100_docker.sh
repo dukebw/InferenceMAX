@@ -14,10 +14,9 @@
 
 # Create a basic vLLM config
 cat > config.yaml << EOF
-compilation-config: '{"cudagraph_mode":"PIECEWISE"}'
 async-scheduling: true
 no-enable-prefix-caching: true
-cuda-graph-sizes: 2048
+max-cudagraph-capture-size: 2048
 max-num-batched-tokens: 8192
 max-model-len: 10240
 EOF
@@ -54,7 +53,7 @@ run_benchmark_serving \
     --output-len "$OSL" \
     --random-range-ratio "$RANDOM_RANGE_RATIO" \
     --num-prompts $(( $CONC * 10 )) \
-    --max-concurrency 512 \
+    --max-concurrency "$CONC" \
     --result-filename "$RESULT_FILENAME" \
     --result-dir /workspace/
 

@@ -29,16 +29,16 @@ else
 fi
 
 cat > config.yaml << EOF
-compilation-config: '{"pass_config":{"enable_fi_allreduce_fusion":true,"enable_attn_fusion":true,"enable_noop":true},"custom_ops":["+rms_norm"],"cudagraph_mode":"FULL_AND_PIECEWISE"}'
+kv-cache-dtype: fp8
+compilation-config: '{"pass_config":{"enable_fi_allreduce_fusion":true,"enable_noop":true}}'
 async-scheduling: true
 no-enable-prefix-caching: true
-cuda-graph-sizes: 2048
+max-cudagraph-capture-size: 2048
 max-num-batched-tokens: 8192
 max-model-len: $CALCULATED_MAX_MODEL_LEN
 EOF
 
 export TORCH_CUDA_ARCH_LIST="10.0"
-export VLLM_FLASHINFER_ALLREDUCE_FUSION_THRESHOLDS_MB='{"2":32,"4":32,"8":8}'
 export PYTHONNOUSERSITE=1
 export VLLM_USE_FLASHINFER_MOE_MXFP4_MXFP8=1
 
