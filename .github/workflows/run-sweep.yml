@@ -142,6 +142,7 @@ jobs:
             conc: ${{ matrix.config.conc }}
             spec-decoding: ${{ matrix.config.spec-decoding }}
             disagg: ${{ matrix.config.disagg }}
+            run-eval: ${{ matrix.config.run-eval }}
 
     sweep-single-node-1k8k:
         needs: setup

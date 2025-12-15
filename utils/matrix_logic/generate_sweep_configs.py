@@ -571,7 +571,7 @@ def main():
         '--run-evals',
         action='store_true',
         required=False,
-        help='When specifiedm run evals on a subset of configs.'
+        help='When specified, run evals on a subset of configs.'
     )
 
     # Create main parser
