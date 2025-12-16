@@ -209,13 +209,15 @@ run_benchmark_serving() {
         return 1
     fi
 
-    # Clone benchmark serving repo
-    local BENCH_SERVING_DIR=$(mktemp -d /tmp/bmk-XXXXXX)
-    git clone https://github.com/kimbochen/bench_serving.git "$BENCH_SERVING_DIR"
+    if [[ -z "$GITHUB_WORKSPACE" ]]; then
+        echo "Warning: 'GITHUB_WORKSPACE' is not set, indicating that this script may not be running \
+        in a GitHub Actions environment. Setting 'GITHUB_WORKSPACE' to current directory for benchmark execution."
+        export GITHUB_WORKSPACE=$(pwd)
+    fi
 
-    # Run benchmark
+    # Run benchmark serving
     set -x
-    python3 "$BENCH_SERVING_DIR/benchmark_serving.py" \
+    python3 "$GITHUB_WORKSPACE/utils/bench_serving/benchmark_serving.py" \
         --model "$model" \
         --backend "$backend" \
         --base-url "http://0.0.0.0:$port" \
@@ -228,6 +230,7 @@ run_benchmark_serving() {
         --request-rate inf \
         --ignore-eos \
         --save-result \
+        --num-warmups "$((2 * max_concurrency))" \
         --percentile-metrics 'ttft,tpot,itl,e2el' \
         --result-dir "$result_dir" \
         --result-filename "$result_filename.json"
