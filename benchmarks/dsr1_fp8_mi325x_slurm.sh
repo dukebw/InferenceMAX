@@ -13,6 +13,8 @@ echo "JOB $SLURM_JOB_ID running on $SLURMD_NODENAME"
 
 SERVER_LOG=$(mktemp /tmp/server-XXXXXX.log)
 PORT=8888
+MAX_JOBS=128
+
 hf download $MODEL
 
 # Reference
@@ -30,6 +32,9 @@ python3 -m sglang.launch_server \
 --num-continuous-decode-steps=4 \
 --max-prefill-tokens=196608 \
 --disable-radix-cache \
+--enable-torch-compile \
+--attention-backend aiter \
+--kv-cache-dtype fp8_e4m3 \
 > $SERVER_LOG 2>&1 &
 
 SERVER_PID=$!

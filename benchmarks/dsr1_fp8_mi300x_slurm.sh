@@ -15,6 +15,7 @@ hf download $MODEL
 
 SERVER_LOG=$(mktemp /tmp/server-XXXXXX.log)
 PORT=8888
+MAX_JOBS=128
 
 # Reference
 # https://rocm.docs.amd.com/en/docs-7.0-rc1/preview/benchmark-docker/inference-sglang-deepseek-r1-fp8.html#run-the-inference-benchmark
@@ -41,6 +42,9 @@ python3 -m sglang.launch_server \
 --num-continuous-decode-steps=4 \
 --max-prefill-tokens=196608 \
 --disable-radix-cache \
+--enable-torch-compile \
+--attention-backend aiter \
+--kv-cache-dtype fp8_e4m3 \
 > $SERVER_LOG 2>&1 &
 
 SERVER_PID=$!

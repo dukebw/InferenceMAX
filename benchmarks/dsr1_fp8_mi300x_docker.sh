@@ -26,6 +26,7 @@ fi
 export SGLANG_USE_AITER=1
 
 SERVER_LOG=$(mktemp /tmp/server-XXXXXX.log)
+MAX_JOBS=128
 
 set -x
 python3 -m sglang.launch_server \
@@ -36,6 +37,9 @@ python3 -m sglang.launch_server \
 --chunked-prefill-size=196608 \
 --num-continuous-decode-steps=4 \
 --max-prefill-tokens=196608 \
+--enable-torch-compile \
+--attention-backend aiter \
+--kv-cache-dtype fp8_e4m3 \
 --disable-radix-cache > $SERVER_LOG 2>&1 &
 
 SERVER_PID=$!

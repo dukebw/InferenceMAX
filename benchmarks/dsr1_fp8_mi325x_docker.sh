@@ -16,6 +16,7 @@
 export SGLANG_USE_AITER=1
 
 SERVER_LOG=$(mktemp /tmp/server-XXXXXX.log)
+MAX_JOBS=128
 
 python3 -m sglang.launch_server \
     --model-path $MODEL \
@@ -27,6 +28,9 @@ python3 -m sglang.launch_server \
     --mem-fraction-static 0.8 --disable-radix-cache \
     --num-continuous-decode-steps 4 \
     --max-prefill-tokens 196608 \
+    --enable-torch-compile \
+    --attention-backend aiter \
+    --kv-cache-dtype fp8_e4m3 \
     --cuda-graph-max-bs 128 > $SERVER_LOG 2>&1 &
 
 SERVER_PID=$!
