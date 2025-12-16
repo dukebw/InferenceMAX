@@ -1,0 +1,51 @@
+
+#!/bin/bash
+
+set -x
+
+source "$(dirname "$0")/benchmark_lib.sh"
+
+check_env_vars CONC_LIST ISL OSL IMAGE SPEC_DECODING MODEL_PATH \
+    PREFILL_NUM_WORKERS PREFILL_TP PREFILL_EP PREFILL_DP_ATTN \
+    DECODE_NUM_WORKERS DECODE_TP DECODE_EP DECODE_DP_ATTN \
+    PREFILL_NODES DECODE_NODES SGL_SLURM_JOBS_PATH # SGL_SLURM_JOBS_PATH FIXME
+
+# Always clone and setup sglang_disagg
+git clone --branch sa-251219 https://github.com/billishyahao/sglang_disagg.git
+
+cd "$SGL_SLURM_JOBS_PATH"
+
+# Set up SGL launch script-specific environment variables
+export TIME_LIMIT="04:00:00"
+export MODEL_PATH=$MODEL_PATH
+export MODEL_NAME="DeepSeek-R1"
+export CONFIG_DIR=$CONFIG_DIR
+export CONTAINER_IMAGE=$IMAGE
+
+
+export PREFILL_ENABLE_EP=true
+if [[ "$PREFILL_DP_ATTN" == "true" ]]; then
+export PREFILL_ENABLE_DP=true
+else 
+export PREFILL_ENABLE_DP=false
+fi
+
+export DECODE_ENABLE_EP=true
+if [[ "$DECODE_DP_ATTN" == "true" ]]; then
+export DECODE_ENABLE_DP=true
+else 
+export DECODE_ENABLE_DP=false
+fi
+
+
+# Launch jobs based on ISL/OSL
+# Replace ' ' in CONC_LIST with 'x' such that the concurrency list is represented
+# by a list of numbers delimted by 'x'. This is because of how the underlying launch script
+# expects the concurrencies.
+bash ./submit_disagg.sh $PREFILL_NODES \
+    $PREFILL_NUM_WORKERS \
+    $DECODE_NODES \
+    $DECODE_NUM_WORKERS \
+    $ISL $OSL "${CONC_LIST// /x}" inf \
+    ${PREFILL_ENABLE_EP} ${PREFILL_ENABLE_DP} \
+    ${DECODE_ENABLE_EP} ${DECODE_ENABLE_DP}
