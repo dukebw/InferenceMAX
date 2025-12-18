@@ -237,11 +237,12 @@ run_benchmark_serving() {
         --percentile-metrics 'ttft,tpot,itl,e2el' \
         --result-dir "$result_dir" \
         --result-filename "$result_filename.json"
+    local benchmark_exit_code=$?
+    set +x
 
-    if [[ $? -ne 0 ]]; then
-        echo "Benchmark serving failed. Check to make sure the inference engine's maximum model \
-            length can accommodate the requested input and output lengths with the specified random range ratio."
+    if [[ $benchmark_exit_code -ne 0 ]]; then
+        echo "Benchmark serving failed. Check to make sure the inference engine's maximum model" \
+             "length can accommodate the requested input and output lengths with the specified random range ratio."
         exit 1
     fi
-    set +x
 }
