@@ -59,3 +59,6 @@ run_benchmark_serving \
     --result-filename "$RESULT_FILENAME" \
     --result-dir /workspace/
 
+cat $SERVER_LOG
+  
+
