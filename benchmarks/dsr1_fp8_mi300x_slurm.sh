@@ -45,7 +45,6 @@ python3 -m sglang.launch_server \
 --enable-torch-compile \
 --piecewise-cuda-graph-compiler eager \
 --attention-backend aiter \
---kv-cache-dtype fp8_e4m3 \
 > $SERVER_LOG 2>&1 &
 
 SERVER_PID=$!
