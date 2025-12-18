@@ -161,7 +161,7 @@ def generate_full_sweep(args, all_config_data, runner_data):
                         Fields.PREFILL.value: prefill,
                         Fields.DECODE.value: decode,
                         Fields.CONC.value: conc_values,  # Pass the entire list for multinode
-                        Fields.MAX_MODEL_LEN.value: isl + osl + 200,
+                        Fields.MAX_MODEL_LEN.value: int((isl + osl) * 1.5),
                         Fields.EXP_NAME.value: f"{model_code}_{seq_len_str}",
                         Fields.DISAGG.value: disagg,
                     }
