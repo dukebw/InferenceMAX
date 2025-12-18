@@ -37,9 +37,9 @@ python3 -m sglang.launch_server \
 --chunked-prefill-size=196608 \
 --num-continuous-decode-steps=4 \
 --max-prefill-tokens=196608 \
---enable-torch-compile \
 --piecewise-cuda-graph-compiler eager \
 --attention-backend aiter \
+--kv-cache-dtype fp8_e4m3 \
 --disable-radix-cache > $SERVER_LOG 2>&1 &
 
 SERVER_PID=$!
