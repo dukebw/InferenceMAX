@@ -184,7 +184,7 @@ dsr1-fp8-mi355x-sglang-disagg:
   model-prefix: dsr1
   runner: mi355x
   precision: fp8
-  framework: sglang
+  framework: sglang-disagg
   multinode: true
   disagg: true
   seq-len-configs:
