@@ -40,10 +40,15 @@ if [[ $FRAMEWORK == "trt" ]]; then
 
     export PORT_OFFSET=0
 
-    salloc --partition=$SLURM_PARTITION --account=$SLURM_ACCOUNT --gres=gpu:$TP --exclusive --time=180 --no-shell
+    # GB200 has 4 GPUs per node - calculate number of nodes needed
+    GPUS_PER_NODE=4
+    NUM_NODES=$(( (TP + GPUS_PER_NODE - 1) / GPUS_PER_NODE ))  # Ceiling division
+    echo "TP=$TP requires $NUM_NODES node(s) with $GPUS_PER_NODE GPUs each"
+
+    salloc --partition=$SLURM_PARTITION --account=$SLURM_ACCOUNT --nodes=$NUM_NODES --gres=gpu:$GPUS_PER_NODE --exclusive --time=180 --no-shell
     JOB_ID=$(squeue -u $USER -h -o %A | head -n1)
 
-    srun --jobid=$JOB_ID \
+    srun --jobid=$JOB_ID --nodes=$NUM_NODES \
     --container-image=$SQUASH_FILE \
     --container-mounts=$GITHUB_WORKSPACE:/workspace/,$MODEL_PATH:/models \
     --no-container-mount-home --container-writable \
