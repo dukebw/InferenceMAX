@@ -11,11 +11,9 @@ on:
         description: "Ref (branch/sha) to checkout"
         required: false
         type: string
-      storage-branch:
-        description: "Branch of Oseltamivir/profiler-storage"
-        required: false
-        type: string
-        default: "main"
+  push:
+    branches:
+      - '**'
 
 permissions:
   contents: read
@@ -25,7 +23,8 @@ env:
   HF_HUB_CACHE: '/mnt/hf_hub_cache/'
 
 jobs:
-  get-jobs:
+  get-jobs-dispatch:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     outputs:
       filtered-matrix: ${{ steps.filter.outputs.filtered }}
@@ -80,13 +79,60 @@ jobs:
           echo "No single-node sglang H200 entries produced by your CLI. Please constrain your args." >&2
           exit 1
 
-  profile:
-    needs: get-jobs
-    if: ${{ needs.get-jobs.outputs.filtered-matrix != '[]' }}
+  get-jobs-push:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    outputs:
+      filtered-matrix: ${{ steps.filter.outputs.filtered }}
+      count: ${{ steps.filter.outputs.count }}
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - id: gen
+        name: Generate matrix for push
+        run: |
+          pip install pydantic
+          # Generate a small, targeted matrix for 1k1k, sglang, H200
+          CONFIG_JSON=$(python3 ${GITHUB_WORKSPACE}/utils/matrix_logic/generate_sweep_configs.py \
+            full-sweep \
+            --config-files .github/configs/nvidia-master.yaml \
+            --runner-config .github/configs/runners.yaml \
+            --single-node \
+            --framework sglang \
+            --runner-type h200 \
+            --model-prefix dsr1 \
+            --precision fp8 \
+            --seq-lens 1k1k \
+            --max-conc 64)
+          echo "raw=$CONFIG_JSON" >> $GITHUB_OUTPUT
+
+      - id: filter
+        name: Filter to single-node SGLang on H200 (conc=64)
+        shell: python
+        run: |
+          import json, os
+          data = json.loads('${{ steps.gen.outputs.raw }}')
+          # Let generator produce conc values; keep only conc==64
+          filt = [d for d in data if d.get('framework')=='sglang' and d.get('prefill') is None and d.get('runner')=='h200' and int(d.get('conc'))==64]
+          out = json.dumps(filt)
+          print(out)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write(f"filtered={out}\n")
+            f.write(f"count={len(filt)}\n")
+
+      - name: Fail if no matching entries
+        if: ${{ steps.filter.outputs.count == '0' }}
+        run: |
+          echo "No matching 1k1k@64 sglang H200 entries found from configs." >&2
+          exit 1
+
+  profile-dispatch:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    needs: get-jobs-dispatch
     strategy:
       fail-fast: false
       matrix:
-        config: ${{ fromJson(needs.get-jobs.outputs.filtered-matrix) }}
+        config: ${{ fromJson(needs.get-jobs-dispatch.outputs.filtered-matrix) }}
     runs-on: ${{ matrix.config.runner }}
     env:
       EXP_NAME: ${{ matrix.config.exp-name }}
@@ -145,6 +191,8 @@ jobs:
           # Compose a consistent result filename
           ep_val="${EP_SIZE:-1}"
           res_name="${EXP_NAME}_${PRECISION}_${FRAMEWORK}_tp${TP}_ep${ep_val}_dpa_${DP_ATTENTION}_conc${CONC}_${RUNNER_NAME}"
+          # export for current step and write to GITHUB_ENV for later steps
+          export RESULT_FILENAME="${res_name}"
           echo "RESULT_FILENAME=${res_name}" >> "$GITHUB_ENV"
 
           # Start run (script picks correct *_h200*_slurm.sh)
@@ -171,53 +219,110 @@ jobs:
         run: |
           python3 utils/process_result.py
 
-      - name: Upload profile as artifact (backup)
+      - name: Upload profile as artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: profile_${{ env.RESULT_FILENAME }}
           path: profile_${{ env.RESULT_FILENAME }}.trace.json.gz
 
-      - name: Checkout storage repo
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Print artifact + instructions
+        run: |
+          echo "Artifact uploaded: profile_${RESULT_FILENAME}" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Open Perfetto UI (https://ui.perfetto.dev) and load profile_${RESULT_FILENAME}.trace.json.gz from the artifact." | tee -a "$GITHUB_STEP_SUMMARY"
+
+  profile-push:
+    if: ${{ github.event_name == 'push' }}
+    needs: get-jobs-push
+    strategy:
+      fail-fast: false
+      matrix:
+        config: ${{ fromJson(needs.get-jobs-push.outputs.filtered-matrix) }}
+    runs-on: ${{ matrix.config.runner }}
+    env:
+      EXP_NAME: ${{ matrix.config.exp-name }}
+      MODEL: ${{ matrix.config.model }}
+      MODEL_PREFIX: ${{ matrix.config.model-prefix }}
+      ISL: ${{ matrix.config.isl }}
+      OSL: ${{ matrix.config.osl }}
+      MAX_MODEL_LEN: ${{ matrix.config.max-model-len }}
+      RANDOM_RANGE_RATIO: '0.8'
+      IMAGE: ${{ matrix.config.image }}
+      FRAMEWORK: ${{ matrix.config.framework }}
+      PRECISION: ${{ matrix.config.precision }}
+      TP: ${{ matrix.config.tp }}
+      EP_SIZE: ${{ matrix.config.ep }}
+      DP_ATTENTION: ${{ matrix.config['dp-attn'] }}
+      CONC: ${{ matrix.config.conc }}
+      SPEC_DECODING: ${{ matrix.config.spec-decoding }}
+      DISAGG: ${{ matrix.config.disagg }}
+    steps:
+      - name: Resource cleanup
+        run: |
+          if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+            echo "[Docker] Cleaning up resources ..."
+            docker ps -aq | xargs -r docker rm -f || true
+            docker network prune -f || true
+            while [ -n "$(docker ps -aq)" ]; do
+              docker ps -a
+              sleep 5
+            done
+          fi
+          if command -v squeue >/dev/null 2>&1; then
+            echo "[Slurm] Cleaning up resources ..."
+            scancel -u $USER || true
+            while [ -n "$(squeue -u $USER --noheader --format='%i')" ]; do
+              squeue -u $USER
+              sleep 5
+            done
+          fi
+          sudo find . -not -user $USER -exec rm -rf {} + || true
+
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           token: ${{ secrets.REPO_PAT }}
-          repository: Oseltamivir/profiler-storage
-          path: storage
-          ref: ${{ inputs.storage-branch }}
+          fetch-depth: 0
 
-      - name: Push profile to storage repo
-        id: push
+      - name: Launch + Profile (H200 single-node sglang)
+        id: run
         env:
-          TRACE_LOCAL: ${{ steps.run.outputs.trace }}
-          STORAGE_BRANCH: ${{ inputs.storage-branch }}
+          RUNNER_NAME: ${{ runner.name }}
+          PROFILE: '1'
+          SGLANG_TORCH_PROFILER_DIR: /workspace/profiles
+        shell: bash
         run: |
           set -euo pipefail
-          # Build destination path
-          dest_dir="storage/profiles/${GITHUB_SHA}/${{ matrix.config.runner }}/${{ matrix.config.framework }}/${{ matrix.config['exp-name'] }}_${{ matrix.config.precision }}_tp${{ matrix.config.tp }}_ep${{ matrix.config.ep || 1 }}_conc${{ matrix.config.conc }}"
-          mkdir -p "$dest_dir"
-          cp "$TRACE_LOCAL" "$dest_dir/trace.json.gz"
+          ep_val="${EP_SIZE:-1}"
+          res_name="${EXP_NAME}_${PRECISION}_${FRAMEWORK}_tp${TP}_ep${ep_val}_dpa_${DP_ATTENTION}_conc${CONC}_${RUNNER_NAME}"
+          export RESULT_FILENAME="${res_name}"
+          echo "RESULT_FILENAME=${res_name}" >> "$GITHUB_ENV"
+          bash ./runners/launch_${RUNNER_NAME%%_*}.sh
+          if [ ! -f "${res_name}.json" ]; then
+            echo "Run failed: Benchmark result ${res_name}.json not found." >&2
+            exit 1
+          fi
+          trace_path="profile_${res_name}.trace.json.gz"
+          if [ -f "$trace_path" ]; then
+            echo "trace=$trace_path" >> "$GITHUB_OUTPUT"
+          else
+            echo "Profile trace not found: $trace_path" >&2
+            exit 1
+          fi
 
-          pushd storage >/dev/null
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add -A
-          git commit -m "Add profile: ${GITHUB_SHA} ${{ matrix.config['exp-name'] }} tp${{ matrix.config.tp }} ep${{ matrix.config.ep || 1 }} conc${{ matrix.config.conc }}" || echo "Nothing to commit"
-          git push origin "$STORAGE_BRANCH"
-          popd >/dev/null
-
-          RAW_URL="https://raw.githubusercontent.com/Oseltamivir/profiler-storage/${STORAGE_BRANCH}/profiles/${GITHUB_SHA}/${{ matrix.config.runner }}/${{ matrix.config.framework }}/${{ matrix.config['exp-name'] }}_${{ matrix.config.precision }}_tp${{ matrix.config.tp }}_ep${{ matrix.config.ep || 1 }}_conc${{ matrix.config.conc }}/trace.json.gz"
-          echo "raw-url=$RAW_URL" >> "$GITHUB_OUTPUT"
-
-      - name: Print Perfetto link
+      - name: Process result (json -> agg)
         env:
-          RAW_URL: ${{ steps.push.outputs.raw-url }}
+          RUNNER_TYPE: ${{ matrix.config.runner }}
         run: |
-          enc=$(python3 - <<PY
-import urllib.parse,os
-print(urllib.parse.quote(os.environ['RAW_URL'], safe=''))
-PY
-          )
-          perfetto_url="https://ui.perfetto.dev/#!/?url=${enc}"
-          echo "Perfetto URL: $perfetto_url"
-          printf "\nProfile: %s\nPerfetto: %s\n" "$RAW_URL" "$perfetto_url" >> "$GITHUB_STEP_SUMMARY"
+          python3 utils/process_result.py
 
+      - name: Upload profile as artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: profile_${{ env.RESULT_FILENAME }}
+          path: profile_${{ env.RESULT_FILENAME }}.trace.json.gz
+
+      - name: Print artifact + instructions
+        run: |
+          echo "Artifact uploaded: profile_${RESULT_FILENAME}" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Open Perfetto UI (https://ui.perfetto.dev) and load profile_${RESULT_FILENAME}.trace.json.gz from the artifact." | tee -a "$GITHUB_STEP_SUMMARY"
