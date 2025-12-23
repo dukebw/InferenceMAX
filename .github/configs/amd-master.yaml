@@ -179,7 +179,7 @@ gptoss-fp4-mi355x-vllm:
 
 
 dsr1-fp8-mi355x-sglang-disagg:
-  image: rocm/sgl-dev:sglang-0.5.6.post1-rocm700-mi35x-mori-1218
+  image: rocm/pytorch-private:sglang-0.5.6.post1-rocm700-mi35x-mori-1224 # TODO: use private image temperarily, will replace it with public one after testing. 
   model: deepseek-ai/DeepSeek-R1-0528
   model-prefix: dsr1
   runner: mi355x
@@ -191,8 +191,9 @@ dsr1-fp8-mi355x-sglang-disagg:
   - isl: 1024
     osl: 1024
     search-space:
+    # MTP configurations
     # "Top of curve" (1 prefill worker at DEP8 and 1 decode worker at DEP16)
-    - spec-decoding: "eagle"
+    - spec-decoding: "mtp"
       conc-list: [ 2048 ]
       prefill:
         num-worker: 1
@@ -208,8 +209,10 @@ dsr1-fp8-mi355x-sglang-disagg:
         dp-attn: true
         additional-settings:
         - "DECODE_NODES=2"
+        - "DECODE_MTP_SIZE=2"
+
     # "Middle of curve" (1 prefill worker at DEP8 and 2 decode workers each at DEP8)
-    - spec-decoding: "eagle"
+    - spec-decoding: "mtp"
       conc-list: [ 256, 512, 1024 ]
       prefill:
         num-worker: 1
@@ -225,9 +228,11 @@ dsr1-fp8-mi355x-sglang-disagg:
         dp-attn: true
         additional-settings:
         - "DECODE_NODES=2"
+        - "DECODE_MTP_SIZE=2"
+
 
     # "Bottom of curve" (1 prefill worker at TEP8 and 2 decode workers at TEP8)
-    - spec-decoding: "eagle"
+    - spec-decoding: "mtp"
       conc-list: [ 32, 64, 128 ]
       prefill:
         num-worker: 1
@@ -244,52 +249,80 @@ dsr1-fp8-mi355x-sglang-disagg:
         dp-attn: false
         additional-settings:
         - "DECODE_NODES=2"
+        - "DECODE_MTP_SIZE=2"
 
-  # - isl: 1024
-  #   osl: 8192
-  #   search-space:
-  #   # "Top of curve" (1 prefill workers each at DEP8 and 2 decode workers at DEP8)
-  #   - spec-decoding: "eagle"
-  #     conc-list: [ 256, 512, 1024 ]
-  #     prefill:
-  #       num-worker: 1
-  #       tp: 1
-  #       ep: 8
-  #       dp-attn: true
-  #       additional-settings:
-  #       - "PREFILL_NODES=1"
-  #     decode:
-  #       num-worker: 2
-  #       tp: 1
-  #       ep: 8
-  #       dp-attn: true
-  #       additional-settings:
-  #       - "DECODE_NODES=2"
 
-  #   # "Bottom of curve" (1 prefill worker at TEP8 and 2 decode workers at TEP8)
-  #   - spec-decoding: "eagle"
-  #     conc-list: [ 32, 64, 128 ]
-  #     prefill:
-  #       num-worker: 1
-  #       tp: 8
-  #       ep: 8
-  #       dp-attn: false
-  #       additional-settings:
-  #       - "PREFILL_NODES=1"
+  - isl: 1024
+    osl: 8192
+    search-space:
+    # MTP configurations
+    # "Top of curve" (1 prefill workers each at DEP8 and 2 decode workers at DEP8)
+    - spec-decoding: "mtp"
+      conc-list: [ 2048 ]
+      prefill:
+        num-worker: 1
+        tp: 1
+        ep: 8
+        dp-attn: true
+        additional-settings:
+        - "PREFILL_NODES=1"
+      decode:
+        num-worker: 1
+        tp: 1
+        ep: 16
+        dp-attn: true
+        additional-settings:
+        - "DECODE_NODES=2"
+        - "DECODE_MTP_SIZE=2"
 
-  #     decode:
-  #       num-worker: 2
-  #       tp: 8
-  #       ep: 8
-  #       dp-attn: false
-  #       additional-settings:
-  #       - "DECODE_NODES=2"
+
+    # "Middle of curve" (1 prefill worker at DEP8 and 2 decode workers each at DEP8)
+    - spec-decoding: "mtp"
+      conc-list: [ 256, 512, 1024 ]
+      prefill:
+        num-worker: 1
+        tp: 1
+        ep: 8
+        dp-attn: true
+        additional-settings:
+        - "PREFILL_NODES=1"
+      decode:
+        num-worker: 2
+        tp: 1
+        ep: 8
+        dp-attn: true
+        additional-settings:
+        - "DECODE_NODES=2"
+        - "DECODE_MTP_SIZE=2"
+
+
+    # "Bottom of curve" (1 prefill worker at TEP8 and 2 decode workers at TEP8)
+    - spec-decoding: "mtp"
+      conc-list: [ 32, 64, 128 ]
+      prefill:
+        num-worker: 1
+        tp: 8
+        ep: 8
+        dp-attn: false
+        additional-settings:
+        - "PREFILL_NODES=1"
+
+      decode:
+        num-worker: 2
+        tp: 8
+        ep: 8
+        dp-attn: false
+        additional-settings:
+        - "DECODE_NODES=2"
+        - "DECODE_MTP_SIZE=2"
+
 
   - isl: 8192
     osl: 1024
     search-space:
+    # MTP configurations
     # "Top of curve" (1 prefill worker at DEP8 and 1 decode worker at DEP16)
-    - spec-decoding: "eagle"
+    - spec-decoding: "mtp"
       conc-list: [ 2048 ]
       prefill:
         num-worker: 1
@@ -305,8 +338,10 @@ dsr1-fp8-mi355x-sglang-disagg:
         dp-attn: true
         additional-settings:
         - "DECODE_NODES=2"
+        - "DECODE_MTP_SIZE=2"
+
     # "Middle of curve" (1 prefill worker at DEP8 and 2 decode workers each at DEP8)
-    - spec-decoding: "eagle"
+    - spec-decoding: "mtp"
       conc-list: [ 256, 512, 1024 ]
       prefill:
         num-worker: 1
@@ -322,9 +357,11 @@ dsr1-fp8-mi355x-sglang-disagg:
         dp-attn: true
         additional-settings:
         - "DECODE_NODES=2"
+        - "DECODE_MTP_SIZE=2"
+
 
     # "Bottom of curve" (1 prefill worker at TEP8 and 2 decode workers at TEP8)
-    - spec-decoding: "eagle"
+    - spec-decoding: "mtp"
       conc-list: [ 32, 64, 128 ]
       prefill:
         num-worker: 1
@@ -341,3 +378,5 @@ dsr1-fp8-mi355x-sglang-disagg:
         dp-attn: false
         additional-settings:
         - "DECODE_NODES=2"
+        - "DECODE_MTP_SIZE=2"
+
