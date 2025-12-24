@@ -82,12 +82,14 @@ if [[ "${PROFILE:-}" == "1" ]]; then
       \"num_steps\": 10,
       \"start_step\": 0,
       \"activities\": [\"GPU\"],
-      \"merge_profiles\": true,
+      \"merge_profiles\": false,
       \"profile_by_stage\": true
     }" || true
 fi
 
 wait "$BENCH_PID"
+
+ls -lt "$SGLANG_TORCH_PROFILER_DIR"
 
 if [[ "${PROFILE:-}" == "1" ]]; then
   # Wait briefly for the file to appear (auto-stop writes it)

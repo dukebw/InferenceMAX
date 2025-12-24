@@ -393,7 +393,7 @@ jobs:
 
       - name: Print Perfetto link
         env:
-          RAW_URL: ${{ steps.push-dispatch.outputs.raw-url }}
+          RAW_URL: ${{ steps.push-push.outputs.raw-url }}
         shell: bash
         run: |
           set -euo pipefail
