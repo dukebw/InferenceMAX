@@ -230,6 +230,7 @@ jobs:
         with:
           repository: Oseltamivir/profiler-storage
           path: storage
+          ref: main
           ssh-key: ${{ secrets.PROFILER_STORAGE_DEPLOY_KEY }}
           fetch-depth: 0
 
@@ -358,8 +359,18 @@ jobs:
         with:
           repository: Oseltamivir/profiler-storage
           path: storage
+          ref: main
           ssh-key: ${{ secrets.PROFILER_STORAGE_DEPLOY_KEY }}
           fetch-depth: 0
+
+      - name: Debug SSH to GitHub
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ssh -V
+          # quick connectivity checks
+          (timeout 5 bash -lc 'cat < /dev/null > /dev/tcp/github.com/22') && echo "port22 ok" || echo "port22 blocked"
+          (timeout 5 bash -lc 'cat < /dev/null > /dev/tcp/ssh.github.com/443') && echo "port443 ok" || echo "port443 blocked"
 
       - name: Push profile to storage repo
         id: push-push
@@ -379,7 +390,7 @@ jobs:
           popd >/dev/null
           RAW_URL="https://raw.githubusercontent.com/Oseltamivir/profiler-storage/HEAD/profiles/${GITHUB_SHA}/${{ matrix.config.runner }}/${{ matrix.config.framework }}/${{ matrix.config['exp-name'] }}_${{ matrix.config.precision }}_tp${{ matrix.config.tp }}_ep${{ matrix.config.ep || 1 }}_conc${{ matrix.config.conc }}/trace.json.gz"
           echo "raw-url=$RAW_URL" >> "$GITHUB_OUTPUT"
-          
+
       - name: Print Perfetto link
         env:
           RAW_URL: ${{ steps.push-dispatch.outputs.raw-url }}

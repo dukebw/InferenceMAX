@@ -50,8 +50,8 @@ wait_for_server_ready --port "$PORT" --server-log "$SERVER_LOG" --server-pid "$S
 
 # If profiling is enabled, start profiling via SGLang HTTP API
 if [[ "${PROFILE:-}" == "1" ]]; then
-    PROFILE_OUT_DIR="${SGLANG_TORCH_PROFILER_DIR:-/workspace/profiles}"
-    mkdir -p "$PROFILE_OUT_DIR"
+    SGLANG_TORCH_PROFILER_DIR="${SGLANG_TORCH_PROFILER_DIR:-/workspace/profiles}"
+    mkdir -p "$SGLANG_TORCH_PROFILER_DIR"
 fi
 
 run_benchmark_serving \
@@ -69,8 +69,7 @@ run_benchmark_serving \
 BENCH_PID=$!
 
 if [[ "${PROFILE:-}" == "1" ]]; then
-  PROFILE_OUT_DIR="${SGLANG_TORCH_PROFILER_DIR}"
-  echo "[PROFILE] Will start mid-run; dir=$PROFILE_OUT_DIR"
+  echo "[PROFILE] Will start mid-run; dir=$SGLANG_TORCH_PROFILER_DIR"
 
   # Wait until the run has ramped up (tune this)
   sleep "${PROFILE_DELAY_SECS:-60}"
@@ -79,11 +78,12 @@ if [[ "${PROFILE:-}" == "1" ]]; then
   curl -sf -X POST "http://127.0.0.1:$PORT/start_profile" \
     -H "Content-Type: application/json" \
     -d "{
-      \"output_dir\": \"$PROFILE_OUT_DIR\",
-      \"num_steps\": 30,
+      \"output_dir\": \"$SGLANG_TORCH_PROFILER_DIR\",
+      \"num_steps\": 10,
       \"start_step\": 0,
       \"activities\": [\"GPU\"],
-      \"merge_profiles\": true
+      \"merge_profiles\": true,
+      \"profile_by_stage\": true
     }" || true
 fi
 
