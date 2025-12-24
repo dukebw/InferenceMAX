@@ -265,13 +265,13 @@ jobs:
           relay="${PERFETTO_RELAY_URL%/}"
           RELAY_URL="${relay}/?src=${enc_src}&title=${enc_title}"
 
-          echo "raw-url=$RAW_URL" >> "$GITHUB_OUTPUT"
-          echo "relay-url=$RELAY_URL" >> "$GITHUB_OUTPUT"
+          echo "raw_url=$RAW_URL" >> "$GITHUB_OUTPUT"
+          echo "relay_url=$RELAY_URL" >> "$GITHUB_OUTPUT"
 
       - name: Print Perfetto link (relay)
         env:
-          RELAY_URL: ${{ steps.push-dispatch.outputs.relay-url }}
-          RAW_URL: ${{ steps.push-dispatch.outputs.raw-url }}
+          RELAY_URL: ${{ steps.push-dispatch.outputs.relay_url }}
+          RAW_URL: ${{ steps.push-dispatch.outputs.raw_url }}
         shell: bash
         run: |
           set -euo pipefail
@@ -378,17 +378,8 @@ jobs:
           ssh-key: ${{ secrets.PROFILER_STORAGE_DEPLOY_KEY }}
           fetch-depth: 0
 
-      - name: Debug SSH to GitHub
-        shell: bash
-        run: |
-          set -euxo pipefail
-          ssh -V
-          # quick connectivity checks
-          (timeout 5 bash -lc 'cat < /dev/null > /dev/tcp/github.com/22') && echo "port22 ok" || echo "port22 blocked"
-          (timeout 5 bash -lc 'cat < /dev/null > /dev/tcp/ssh.github.com/443') && echo "port443 ok" || echo "port443 blocked"
-
       - name: Push profile to storage repo
-        id: push-dispatch
+        id: push-push
         env:
           TRACE_LOCAL: ${{ steps.run.outputs.trace }}
           PERFETTO_RELAY_URL: ${{ vars.PERFETTO_RELAY_URL }}
@@ -418,13 +409,13 @@ jobs:
           relay="${PERFETTO_RELAY_URL%/}"
           RELAY_URL="${relay}/?src=${enc_src}&title=${enc_title}"
 
-          echo "raw-url=$RAW_URL" >> "$GITHUB_OUTPUT"
-          echo "relay-url=$RELAY_URL" >> "$GITHUB_OUTPUT"
+          echo "raw_url=$RAW_URL" >> "$GITHUB_OUTPUT"
+          echo "relay_url=$RELAY_URL" >> "$GITHUB_OUTPUT"
 
       - name: Print Perfetto link (relay)
         env:
-          RELAY_URL: ${{ steps.push-push.outputs.relay-url }}
-          RAW_URL: ${{ steps.push-push.outputs.raw-url }}
+          RELAY_URL: ${{ steps.push-push.outputs.relay_url }}
+          RAW_URL: ${{ steps.push-push.outputs.raw_url }}
         shell: bash
         run: |
           set -euo pipefail
