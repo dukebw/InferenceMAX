@@ -55,7 +55,7 @@ if [[ "${PROFILE:-}" == "1" ]]; then
     echo "[PROFILE] Starting profiling; output_dir=$PROFILE_OUT_DIR"
     curl -s -X POST "http://0.0.0.0:$PORT/start_profile" \
       -H "Content-Type: application/json" \
-      -d "{\"output_dir\": \"$PROFILE_OUT_DIR\", \"merge_profiles\": true, \"activities\": [\"CPU\", \"GPU\"], \"start_step\": 3}" || true
+      -d "{\"output_dir\": \"$PROFILE_OUT_DIR\", \"merge_profiles\": true, \"num_steps\": 30, \"activities\": [\"CPU\", \"GPU\"], \"start_step\": 3}" || true
 fi
 
 run_benchmark_serving \
