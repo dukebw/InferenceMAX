@@ -55,7 +55,7 @@ if [[ "${PROFILE:-}" == "1" ]]; then
     echo "[PROFILE] Starting profiling; output_dir=$PROFILE_OUT_DIR"
     curl -s -X POST "http://0.0.0.0:$PORT/start_profile" \
       -H "Content-Type: application/json" \
-      -d "{\"output_dir\": \"$PROFILE_OUT_DIR\", \"merge_profiles\": true, \"num_steps\": 30, \"activities\": [\"CPU\", \"GPU\"], \"start_step\": 3}" || true
+      -d "{\"output_dir\": \"$PROFILE_OUT_DIR\", \"merge_profiles\": true, \"activities\": [\"CPU\", \"GPU\"], \"start_step\": 3}" || true
 fi
 
 run_benchmark_serving \
@@ -65,7 +65,7 @@ run_benchmark_serving \
     --input-len "$ISL" \
     --output-len "$OSL" \
     --random-range-ratio "$RANDOM_RANGE_RATIO" \
-    --num-prompts $(( (${PROFILE:-0} == 1) ? CONC : (CONC * 10) )) \
+    --num-prompts $(( (${PROFILE:-0} == 1) ? 1 : (CONC * 10) )) \
     --max-concurrency "$CONC" \
     --result-filename "$RESULT_FILENAME" \
     --result-dir /workspace/
