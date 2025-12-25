@@ -102,6 +102,12 @@ if [[ "${PROFILE:-}" == "1" ]]; then
 
   if [[ -n "$TRACE_FILE" ]]; then
     DEST_TRACE="/workspace/profile_${RESULT_FILENAME}.trace.json.gz"
+    # If a merged profile exists, run MFU analyzer on it before copying
+    MERGED_TRACE=$(ls -t "$SGLANG_TORCH_PROFILER_DIR"/merged-*.trace.json* 2>/dev/null | head -n1)
+    if [[ -n "$MERGED_TRACE" ]]; then
+      echo "[PROFILE] Running MFU analyzer on merged trace: $MERGED_TRACE"
+      PYTHONNOUSERSITE=1 python3 utils/mfu_trace_analyzer.py "$MERGED_TRACE" "$MERGED_TRACE" --gpu H200 || echo "[PROFILE] MFU analyzer failed; continuing without modification"
+    fi
     echo "[PROFILE] Found trace: $TRACE_FILE -> $DEST_TRACE"
     cp "$TRACE_FILE" "$DEST_TRACE"
   else
