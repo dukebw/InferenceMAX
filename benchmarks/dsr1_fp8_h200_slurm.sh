@@ -81,7 +81,7 @@ if [[ "${PROFILE:-}" == "1" ]]; then
       \"output_dir\": \"$SGLANG_TORCH_PROFILER_DIR\",
       \"num_steps\": 10,
       \"start_step\": 0,
-      \"activities\": [\"GPU\"],
+      \"activities\": [\"GPU\", \"CPU\"],
       \"merge_profiles\": true,
       \"profile_by_stage\": true
     }" || true
